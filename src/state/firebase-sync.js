@@ -1,6 +1,7 @@
 import { createAppState, normalizeState } from './store.js';
 import { loadState, saveState } from './storage.js';
 import { getFirebaseApp } from './firebase-app.js';
+import { importFirebaseFirestoreModule } from './firebase-modules.js';
 
 export function hasFirebaseConfig(config) {
   const requiredValues = [config?.apiKey, config?.projectId, config?.appId].map((value) => String(value ?? '').trim());
@@ -29,7 +30,7 @@ export function createFirestoreStateAdapter(firebaseConfig, today) {
   return {
     mode: 'firestore',
     async subscribe(callback) {
-      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), import('firebase/firestore')]);
+      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), importFirebaseFirestoreModule()]);
       const db = firestore.getFirestore(app);
       const ref = firestore.doc(db, 'workloadApps', 'default');
       return firestore.onSnapshot(ref, async (snapshot) => {
@@ -43,7 +44,7 @@ export function createFirestoreStateAdapter(firebaseConfig, today) {
       });
     },
     async save(nextState) {
-      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), import('firebase/firestore')]);
+      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), importFirebaseFirestoreModule()]);
       const db = firestore.getFirestore(app);
       await firestore.setDoc(firestore.doc(db, 'workloadApps', 'default'), normalizeState(nextState), { merge: true });
     }

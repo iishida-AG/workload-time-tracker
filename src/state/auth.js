@@ -1,5 +1,6 @@
 import { hasFirebaseConfig } from './firebase-sync.js';
 import { getFirebaseApp } from './firebase-app.js';
+import { importFirebaseAuthModule } from './firebase-modules.js';
 
 export function authIsRequired(firebaseConfig) {
   return hasFirebaseConfig(firebaseConfig);
@@ -37,7 +38,7 @@ function createFirebaseAuthController(firebaseConfig) {
 
   async function getAuthApi() {
     if (!authPromise) {
-      authPromise = Promise.all([getFirebaseApp(firebaseConfig), import('firebase/auth')]).then(
+      authPromise = Promise.all([getFirebaseApp(firebaseConfig), importFirebaseAuthModule()]).then(
         ([app, auth]) => ({ auth, instance: auth.getAuth(app) })
       );
     }

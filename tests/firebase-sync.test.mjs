@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createMemoryStorage } from './test-utils.mjs';
 import { createLocalStateAdapter, createStateAdapter, hasFirebaseConfig } from '../src/state/firebase-sync.js';
+import { firebaseModuleSpecifiers } from '../src/state/firebase-modules.js';
 import { loadState, STORAGE_KEY } from '../src/state/storage.js';
 
 function test(name, fn) {
@@ -50,4 +51,13 @@ test('createStateAdapter uses local adapter when firebase config is incomplete',
   });
 
   assert.equal(adapter.mode, 'local');
+});
+
+test('Firebase modules use browser-resolvable CDN specifiers for GitHub Pages', () => {
+  assert.match(firebaseModuleSpecifiers.app, /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-app\.js$/);
+  assert.match(firebaseModuleSpecifiers.auth, /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-auth\.js$/);
+  assert.match(
+    firebaseModuleSpecifiers.firestore,
+    /^https:\/\/www\.gstatic\.com\/firebasejs\/[\d.]+\/firebase-firestore\.js$/
+  );
 });
