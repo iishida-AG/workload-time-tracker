@@ -1,19 +1,20 @@
-import { createAppState } from './store.js';
+import { createAppState, normalizeState } from './store.js';
 
-const STORAGE_KEY = 'workload-time-tracker:v1';
+export const STORAGE_KEY = 'workload-time-tracker:v2';
+const LEGACY_STORAGE_KEY = 'workload-time-tracker:v1';
 
 export function loadState(storage = globalThis.localStorage, today) {
   if (!storage) {
-    return createAppState(today);
+    return normalizeState(createAppState(today), 'ishida');
   }
-  const raw = storage.getItem(STORAGE_KEY);
+  const raw = storage.getItem(STORAGE_KEY) || storage.getItem(LEGACY_STORAGE_KEY);
   if (!raw) {
-    return createAppState(today);
+    return normalizeState(createAppState(today), 'ishida');
   }
   try {
-    return JSON.parse(raw);
+    return normalizeState(JSON.parse(raw), 'ishida');
   } catch {
-    return createAppState(today);
+    return normalizeState(createAppState(today), 'ishida');
   }
 }
 

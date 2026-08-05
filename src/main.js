@@ -1,24 +1,39 @@
-import { HOURS, getWeekStart, toDateKey } from './domain/calendar.js';
+import { getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
 import { TASK_NATURES } from './domain/presets.js';
 import {
+  clearTimelineEntry,
+  computeProjectCountSummaries,
   computeReviewMetrics,
   copyPlanToActuals,
   incrementDailyCount,
-  setTimelineEntry
+  setTimelineEntry,
+  setTimelineNote
 } from './domain/metrics.js';
+import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js';
-import { loadState, saveState } from './state/storage.js';
+import { createStateAdapter } from './state/firebase-sync.js';
+import { firebaseConfig } from './firebase-config.js';
+import { createAuthController } from './state/auth.js';
 import {
   addProject,
   addTask,
+  getTimelineSetting,
   hideTask,
+  moveProjectOrder,
   updateProject,
   updateTask,
+  upsertMonthlyProjectGoal,
   upsertReview,
-  upsertWeeklyGoal
+  upsertTimelineSetting,
+  upsertWeeklyProjectGoal
 } from './state/store.js';
 
 const natureLabels = Object.fromEntries(TASK_NATURES.map((nature) => [nature.id, nature.label]));
+const displayUserLabels = {
+  ishida: '石田',
+  tanoue: '田上',
+  all: '全員'
+};
 
 let state;
 let root;
@@ -26,6 +41,67 @@ let currentDate;
 let activeTab = 'dashboard';
 let selectedTaskId = '';
 let reviewMode = 'week';
+let activeUserId = 'ishida';
+let focusedCell = null;
+let adapter;
+let authController;
+let authState = { status: 'loading', user: null, error: '' };
+let unsubscribeState = null;
+let unsubscribeAuth = null;
+let suppressNextAdapterRender = false;
+
+const validUserIds = new Set(USERS.map((user) => user.id));
+
+export function getUserIdFromUrl(url, fallbackUserId = 'ishida') {
+  try {
+    const parsed = new URL(url);
+    const userId = parsed.searchParams.get('user');
+    return validUserIds.has(userId) ? userId : fallbackUserId;
+  } catch {
+    return fallbackUserId;
+  }
+}
+
+export function buildUserUrl(url, userId) {
+  const parsed = new URL(url);
+  parsed.searchParams.set('user', validUserIds.has(userId) ? userId : 'ishida');
+  return parsed.toString();
+}
+
+function currentPageUrl() {
+  return typeof window === 'undefined' ? 'https://example.github.io/workload/' : window.location.href;
+}
+
+function replaceCurrentUserUrl(userId) {
+  if (typeof window === 'undefined') return;
+  window.history.replaceState({}, '', buildUserUrl(window.location.href, userId));
+}
+
+function renderAuthGate() {
+  const loading = authState.status === 'loading';
+  return `
+    <div class="auth-shell">
+      <section class="auth-panel">
+        <span class="section-kicker">ログイン</span>
+        <h1>石田・田上だけが使えるようにしています</h1>
+        <p>URLを知っていても、Firebaseに登録されたメールアドレスとパスワードでログインしないと共有データは開けません。</p>
+        <form class="auth-form" data-form="login">
+          <label>
+            <span>メールアドレス</span>
+            <input name="email" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            <span>パスワード</span>
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button class="primary-button" type="submit" ${loading ? 'disabled' : ''}>${icon('save')}<span>${loading ? '確認中...' : 'ログイン'}</span></button>
+        </form>
+        ${authState.error ? `<p class="auth-error">${escapeHtml(authState.error)}</p>` : ''}
+        <p class="auth-note">Firebase Consoleで石田さん・田上さんの2アカウントだけを作成してください。アプリ側には新規登録ボタンを置いていません。</p>
+      </section>
+    </div>
+  `;
+}
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => {
@@ -46,7 +122,9 @@ function icon(name) {
     settings: '<path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 1 1 4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 1 1 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     eyeOff: '<path d="M3 3l18 18"/><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"/><path d="M9.9 4.2A10.8 10.8 0 0 1 12 4c7 0 10 8 10 8a18.5 18.5 0 0 1-2.2 3.4"/><path d="M6.6 6.6C3.5 8.7 2 12 2 12s3 8 10 8a10.8 10.8 0 0 0 5.4-1.4"/>',
     eye: '<path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
-    save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>'
+    save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
+    arrowUp: '<path d="m18 15-6-6-6 6"/>',
+    arrowDown: '<path d="m6 9 6 6 6-6"/>'
   };
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] ?? paths.target}</svg>`;
 }
@@ -57,6 +135,10 @@ function todayKey() {
 
 function activeProjects() {
   return state.projects.filter((project) => project.status === 'active').sort((a, b) => a.order - b.order);
+}
+
+function displayUserLabel(userId) {
+  return displayUserLabels[userId] ?? getUserLabel(userId);
 }
 
 function sortedTasks(includeHidden = false) {
@@ -83,15 +165,60 @@ function currentReview() {
       weekStart: weekStart(),
       goalReflection: '',
       overtimeCause: '',
-      nextPromise: ''
+      nextPromise: '',
+      discussionItems: ''
     }
   );
 }
 
-function commit(nextState) {
+function commit(nextState, options = {}) {
+  const shouldRender = options.render !== false;
   state = nextState;
-  saveState(state);
-  render();
+  if (adapter) {
+    if (adapter.mode === 'local') {
+      suppressNextAdapterRender = true;
+    }
+    const result = adapter.save(nextState);
+    if (result && typeof result.catch === 'function') {
+      result.catch((error) => console.error('Failed to save state', error));
+    }
+  }
+  if (shouldRender) {
+    render();
+  }
+}
+
+function unsubscribeSharedState() {
+  if (typeof unsubscribeState === 'function') {
+    unsubscribeState();
+  }
+  unsubscribeState = null;
+}
+
+function subscribeSharedState() {
+  unsubscribeSharedState();
+  adapter = createStateAdapter({ storage: localStorage, today: currentDate, firebaseConfig });
+  const subscription = adapter.subscribe((nextState) => {
+    state = nextState;
+    ensureSelectedTask();
+    if (suppressNextAdapterRender) {
+      suppressNextAdapterRender = false;
+      return;
+    }
+    render();
+  });
+  if (subscription && typeof subscription.then === 'function') {
+    subscription
+      .then((unsubscribe) => {
+        unsubscribeState = unsubscribe;
+      })
+      .catch((error) => {
+        console.error('Failed to subscribe to state', error);
+        root.innerHTML = '<div class="app-shell"><section class="panel">共有データを読み込めませんでした。Firebaseのログイン権限とFirestoreルールを確認してください。</section></div>';
+      });
+  } else {
+    unsubscribeState = subscription;
+  }
 }
 
 function ensureSelectedTask() {
@@ -115,28 +242,35 @@ function renderNatureOptions(selectedNature) {
   ).join('');
 }
 
-function entryFor(collectionName, hour) {
-  return state[collectionName].find((entry) => entry.date === currentDate && entry.hour === hour);
+function entryFor(collectionName, hour, userId = activeUserId) {
+  return state[collectionName].find(
+    (entry) => (entry.userId ?? 'ishida') === userId && entry.date === currentDate && entry.hour === hour
+  );
 }
 
-function countFor(taskId, date) {
-  return state.dailyCounts.find((row) => row.taskId === taskId && row.date === date)?.count ?? 0;
+function countFor(taskId, date, userId = activeUserId) {
+  return (
+    state.dailyCounts.find(
+      (row) => (row.userId ?? 'ishida') === userId && row.taskId === taskId && row.date === date
+    )?.count ?? 0
+  );
 }
 
-function weeklyCountFor(taskId) {
+function weeklyCountFor(taskId, userId = activeUserId) {
   const start = weekStart();
   const end = new Date(`${start}T00:00:00`);
   end.setDate(end.getDate() + 6);
   return state.dailyCounts
     .filter((row) => {
       const rowDate = new Date(`${row.date}T00:00:00`);
-      return row.taskId === taskId && rowDate >= new Date(`${start}T00:00:00`) && rowDate <= end;
+      return (
+        (row.userId ?? 'ishida') === userId &&
+        row.taskId === taskId &&
+        rowDate >= new Date(`${start}T00:00:00`) &&
+        rowDate <= end
+      );
     })
     .reduce((sum, row) => sum + row.count, 0);
-}
-
-function goalFor(taskId) {
-  return state.weeklyGoals.find((goal) => goal.weekStart === weekStart() && goal.taskId === taskId)?.targetCount ?? 0;
 }
 
 function renderReminderStrip(view) {
@@ -162,6 +296,119 @@ function renderReminderStrip(view) {
   `;
 }
 
+function renderUserSwitcher(view) {
+  return `
+    <div class="user-switcher" role="group" aria-label="入力ユーザー">
+      ${USERS.map(
+        (user) => `
+          <button class="user-button ${view.userId === user.id ? 'active' : ''}" data-action="switch-user" data-user-id="${escapeHtml(user.id)}">
+            ${escapeHtml(displayUserLabel(user.id))}
+          </button>
+        `
+      ).join('')}
+    </div>
+  `;
+}
+
+function renderShareLinks() {
+  const pageUrl = currentPageUrl();
+  return `
+    <div class="share-links" aria-label="共有URL">
+      <span>共有URL</span>
+      ${USERS.map((user) => {
+        const url = buildUserUrl(pageUrl, user.id);
+        return `
+          <a href="${escapeHtml(url)}" data-user-share-link="${escapeHtml(user.id)}">${escapeHtml(displayUserLabel(user.id))}用URL</a>
+          <button class="icon-button" data-action="copy-user-url" data-user-id="${escapeHtml(user.id)}" aria-label="${escapeHtml(displayUserLabel(user.id))}用URLをコピー">
+            ${icon('copy')}
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderAccountMenu() {
+  if (authController?.mode !== 'firebase-auth' || !authState.user) return '';
+  return `
+    <div class="account-menu">
+      <span>${escapeHtml(authState.user.email ?? '')}</span>
+      <button class="ghost-button" data-action="logout">ログアウト</button>
+    </div>
+  `;
+}
+
+function renderHourOptions(selectedHour, startHour, endHour) {
+  return Array.from({ length: endHour - startHour + 1 }, (_, index) => startHour + index)
+    .map(
+      (hour) =>
+        `<option value="${hour}" ${hour === selectedHour ? 'selected' : ''}>${String(hour).padStart(2, '0')}:00</option>`
+    )
+    .join('');
+}
+
+function renderTimeRangeControls(view) {
+  return `
+    <div class="time-range-controls" aria-label="日次時間範囲">
+      <label>
+        <span>開始</span>
+        <select data-field="start-hour">${renderHourOptions(view.timelineSetting.startHour, 0, 23)}</select>
+      </label>
+      <label>
+        <span>終了</span>
+        <select data-field="end-hour">${renderHourOptions(view.timelineSetting.endHour, 1, 24)}</select>
+      </label>
+    </div>
+  `;
+}
+
+function hourRangeLabel(hour) {
+  return `${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00`;
+}
+
+function renderCopyTextarea(label, text) {
+  return `
+    <label class="copy-block">
+      <span>${escapeHtml(label)}</span>
+      <textarea class="copy-text" readonly>${escapeHtml(text)}</textarea>
+    </label>
+  `;
+}
+
+function renderCopyTextBlocks(view) {
+  return `
+    <div class="copy-section">
+      <div class="copy-heading">
+        <span class="section-kicker">コピー用テキスト</span>
+      </div>
+      <div class="copy-grid">
+        ${renderCopyTextarea('予定', view.planCopyText)}
+        ${renderCopyTextarea('実績', view.actualCopyText)}
+      </div>
+    </div>
+  `;
+}
+
+function renderPartnerPreview(view) {
+  return `
+    <section class="panel partner-panel">
+      <div class="panel-heading">
+        <div>
+          <span class="section-kicker">共有プレビュー</span>
+          <h2>${escapeHtml(displayUserLabel(view.partnerUserId))}の入力</h2>
+        </div>
+        <span class="time-range-badge">
+          ${String(view.partnerTimelineSetting.startHour).padStart(2, '0')}:00-${String(view.partnerTimelineSetting.endHour).padStart(2, '0')}:00
+        </span>
+      </div>
+      <div class="copy-grid">
+        ${renderCopyTextarea('予定', view.partnerPlanCopyText)}
+        ${renderCopyTextarea('実績', view.partnerActualCopyText)}
+      </div>
+    </section>
+  `;
+}
+
 function renderHeader(view) {
   const tabs = [
     ['dashboard', '日次入力', 'clock'],
@@ -174,62 +421,96 @@ function renderHeader(view) {
         <span class="section-kicker">業務・工数管理</span>
         <h1>予実を翌週の改善へつなぐ</h1>
       </div>
-      <nav class="tab-nav" aria-label="画面切り替え">
-        ${tabs
-          .map(
-            ([tab, label, iconName]) => `
-              <button class="tab-button ${activeTab === tab ? 'active' : ''}" data-action="switch-tab" data-tab="${tab}">
-                ${icon(iconName)}<span>${label}</span>
-              </button>
-            `
-          )
-          .join('')}
-      </nav>
+      <div class="header-actions">
+        ${renderUserSwitcher(view)}
+        ${renderShareLinks()}
+        ${renderAccountMenu()}
+        <nav class="tab-nav" aria-label="画面切り替え">
+          ${tabs
+            .map(
+              ([tab, label, iconName]) => `
+                <button class="tab-button ${activeTab === tab ? 'active' : ''}" data-action="switch-tab" data-tab="${tab}">
+                  ${icon(iconName)}<span>${label}</span>
+                </button>
+              `
+            )
+            .join('')}
+        </nav>
+      </div>
     </header>
     ${renderReminderStrip(view)}
   `;
 }
 
-function renderTimelineColumn(title, collectionName) {
+function renderTimelineColumn(title, collectionName, view) {
+  const hours = getTimelineHours(view.timelineSetting.startHour, view.timelineSetting.endHour);
   return `
     <div class="timeline-column">
       <div class="timeline-title">${escapeHtml(title)}</div>
-      ${HOURS.map((hour) => {
+      ${hours.map((hour) => {
         const entry = entryFor(collectionName, hour);
         const task = entry ? taskById(entry.taskId) : null;
         const project = task ? projectById(task.projectId) : null;
+        const isFocused =
+          focusedCell?.collectionName === collectionName &&
+          focusedCell?.userId === view.userId &&
+          focusedCell?.date === currentDate &&
+          focusedCell?.hour === hour;
         return `
-          <button class="timeline-cell nature-${task?.nature ?? 'empty'}" data-action="set-timeline" data-collection="${collectionName}" data-hour="${hour}">
-            <span class="timeline-hour">${String(hour).padStart(2, '0')}:00</span>
-            <span class="timeline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
-            <span class="timeline-project">${project ? escapeHtml(project.name) : 'タスクを選択'}</span>
-          </button>
+          <div class="timeline-entry">
+            <button
+              class="timeline-cell ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
+              data-action="set-timeline"
+              data-timeline-cell="true"
+              data-collection="${collectionName}"
+              data-hour="${hour}"
+            >
+              <span class="timeline-hour">${hourRangeLabel(hour)}</span>
+              <span class="timeline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
+              <span class="timeline-project">${project ? escapeHtml(project.name) : 'タスクを選択'}</span>
+            </button>
+            <label class="timeline-note-wrap">
+              <span>自由記入</span>
+              <input
+                class="timeline-note"
+                type="text"
+                value="${escapeHtml(entry?.note ?? '')}"
+                data-field="timeline-note"
+                data-collection="${collectionName}"
+                data-hour="${hour}"
+                placeholder="自由記入"
+                ${entry ? '' : 'disabled'}
+              />
+            </label>
+          </div>
         `;
       }).join('')}
     </div>
   `;
 }
 
-function renderTimelineBoard() {
+function renderTimelineBoard(view) {
   return `
     <section class="panel timeline-panel">
       <div class="panel-heading">
         <div>
           <span class="section-kicker">日次スケジュール</span>
-          <h2>${escapeHtml(currentDate)}</h2>
+          <h2>${escapeHtml(currentDate)} / ${escapeHtml(displayUserLabel(view.userId))}</h2>
         </div>
         <div class="toolbar">
           <label class="date-field">
             ${icon('calendar')}
             <input type="date" value="${escapeHtml(currentDate)}" data-field="current-date" />
           </label>
-          <button class="primary-button" data-action="copy-plan">${icon('copy')}<span>予定通りコピー</span></button>
+          ${renderTimeRangeControls(view)}
+          <button class="primary-button" data-action="copy-plan">${icon('copy')}<span>予定を実績へコピー</span></button>
         </div>
       </div>
       <div class="timeline-grid">
-        ${renderTimelineColumn('予定', 'dayPlans')}
-        ${renderTimelineColumn('実績', 'dayActuals')}
+        ${renderTimelineColumn('予定', 'dayPlans', view)}
+        ${renderTimelineColumn('実績', 'dayActuals', view)}
       </div>
+      ${renderCopyTextBlocks(view)}
     </section>
   `;
 }
@@ -265,45 +546,129 @@ function renderShortcutPalette(view) {
   `;
 }
 
-function renderKpiCounterPanel(view) {
+function weeklyProjectGoalFor(projectId, userId = activeUserId) {
+  return (
+    (state.weeklyProjectGoals ?? []).find(
+      (goal) =>
+        (goal.userId ?? 'ishida') === userId &&
+        goal.weekStart === weekStart() &&
+        goal.projectId === projectId
+    )?.goalText ?? ''
+  );
+}
+
+function monthlyProjectGoalFor(userId, month, projectId) {
+  return (
+    (state.monthlyProjectGoals ?? []).find(
+      (goal) =>
+        (goal.userId ?? 'ishida') === userId &&
+        goal.month === month &&
+        goal.projectId === projectId
+    )?.goalText ?? ''
+  );
+}
+
+function renderProjectTaskCounts(projectId, tasks) {
+  const projectTasks = tasks.filter((task) => task.projectId === projectId);
+  if (projectTasks.length === 0) {
+    return '<p class="empty-state compact">件数管理タスクなし</p>';
+  }
+
   return `
-    <section class="panel counter-panel">
-      <div class="panel-heading">
+    <div class="project-count-list">
+      ${projectTasks
+        .map(
+          (task) => `
+            <div class="project-count-row">
+              <div>
+                <span class="project-count-task">${escapeHtml(task.name)}</span>
+                <span class="project-count-meta">週合計 ${weeklyCountFor(task.id)}件 / 今日 ${countFor(task.id, currentDate)}件</span>
+              </div>
+              <div class="stepper">
+                <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="-1" aria-label="${escapeHtml(task.name)}を1件減らす">${icon('minus')}</button>
+                <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="1" aria-label="${escapeHtml(task.name)}を1件増やす">${icon('plus')}</button>
+              </div>
+            </div>
+          `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
+function renderWeeklyProjectGoals(view) {
+  const rows = computeProjectCountSummaries(state, activeUserId, weekStart());
+  return `
+    <section class="project-goal-panel">
+      <div class="panel-heading project-goal-heading">
         <div>
           <span class="section-kicker">週次目標と実績件数</span>
-          <h2>${escapeHtml(weekStart())} 週</h2>
+          <h2>${escapeHtml(weekStart())} 週 / ${escapeHtml(displayUserLabel(activeUserId))}</h2>
         </div>
       </div>
-      <div class="counter-grid">
-        ${view.countableTasks
-          .map((task) => {
-            const weekly = weeklyCountFor(task.id);
-            const target = goalFor(task.id);
-            const progress = target === 0 ? 0 : Math.min(100, Math.round((weekly / target) * 100));
-            return `
-              <article class="counter-card">
-                <div>
-                  <span class="task-chip nature-${task.nature}">${escapeHtml(natureLabels[task.nature])}</span>
-                  <h3>${escapeHtml(task.name)}</h3>
+      <div class="project-goal-grid">
+        ${rows
+          .map(
+            (row, index) => `
+              <article class="project-goal-card">
+                <div class="project-goal-card-header">
+                  <h3>${escapeHtml(row.projectName)}</h3>
+                  <div class="project-order-controls">
+                    <button class="icon-button" data-action="move-project" data-project-id="${escapeHtml(row.projectId)}" data-direction="up" ${index === 0 ? 'disabled' : ''} aria-label="${escapeHtml(row.projectName)}を上へ移動">
+                      ${icon('arrowUp')}
+                    </button>
+                    <button class="icon-button" data-action="move-project" data-project-id="${escapeHtml(row.projectId)}" data-direction="down" ${index === rows.length - 1 ? 'disabled' : ''} aria-label="${escapeHtml(row.projectName)}を下へ移動">
+                      ${icon('arrowDown')}
+                    </button>
+                  </div>
+                  <div class="project-actual-count">
+                    <span>実績件数</span>
+                    <strong>${row.actualCount}件</strong>
+                  </div>
                 </div>
-                <label class="goal-input">
-                  <span>目標</span>
-                  <input type="number" min="0" value="${target}" data-field="weekly-goal" data-task-id="${escapeHtml(task.id)}" />
+                <label class="project-goal-text">
+                  <span>今週の目標</span>
+                  <textarea data-field="weekly-project-goal" data-project-id="${escapeHtml(row.projectId)}" placeholder="今週の目標を自由に記入">${escapeHtml(weeklyProjectGoalFor(row.projectId))}</textarea>
                 </label>
-                <div class="progress-track"><span style="width:${progress}%"></span></div>
-                <div class="counter-actions">
-                  <div>
-                    <span>週 ${weekly}</span>
-                    <strong>今日 ${countFor(task.id, currentDate)}</strong>
-                  </div>
-                  <div class="stepper">
-                    <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="-1" aria-label="${escapeHtml(task.name)}を1件減らす">${icon('minus')}</button>
-                    <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="1" aria-label="${escapeHtml(task.name)}を1件増やす">${icon('plus')}</button>
-                  </div>
+                ${renderProjectTaskCounts(row.projectId, view.countableTasks)}
+              </article>
+            `
+          )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderMonthlyProjectGoals() {
+  const month = currentDate.slice(0, 7);
+  return `
+    <section class="monthly-goal-panel">
+      <div class="panel-heading project-goal-heading">
+        <div>
+          <span class="section-kicker">月次目標設定</span>
+          <h2>${escapeHtml(month)}</h2>
+        </div>
+      </div>
+      <div class="project-goal-grid">
+        ${activeProjects()
+          .map(
+            (project) => `
+              <article class="project-goal-card monthly-goal-card">
+                <h3>${escapeHtml(project.name)}</h3>
+                <div class="monthly-goal-fields">
+                  <label class="project-goal-text">
+                    <span>石田</span>
+                    <textarea data-field="monthly-project-goal" data-user-id="ishida" data-project-id="${escapeHtml(project.id)}" placeholder="今月の目標を自由に記入">${escapeHtml(monthlyProjectGoalFor('ishida', month, project.id))}</textarea>
+                  </label>
+                  <label class="project-goal-text">
+                    <span>田上</span>
+                    <textarea data-field="monthly-project-goal" data-user-id="tanoue" data-project-id="${escapeHtml(project.id)}" placeholder="今月の目標を自由に記入">${escapeHtml(monthlyProjectGoalFor('tanoue', month, project.id))}</textarea>
+                  </label>
                 </div>
               </article>
-            `;
-          })
+            `
+          )
           .join('')}
       </div>
     </section>
@@ -314,11 +679,12 @@ function renderDashboard(view) {
   return `
     <div class="dashboard-layout">
       <div class="main-stack">
-        ${renderTimelineBoard()}
-        ${renderKpiCounterPanel(view)}
+        ${renderTimelineBoard(view)}
+        ${renderPartnerPreview(view)}
       </div>
       ${renderShortcutPalette(view)}
     </div>
+    ${renderWeeklyProjectGoals(view)}
   `;
 }
 
@@ -457,10 +823,11 @@ function renderPie(metrics) {
 
 function renderReviewDashboard() {
   const periodStart = reviewMode === 'week' ? weekStart() : `${currentDate.slice(0, 7)}-01`;
-  const metrics = computeReviewMetrics(state, periodStart, { periodMode: reviewMode });
+  const metrics = computeReviewMetrics(state, periodStart, { periodMode: reviewMode, userId: activeUserId });
   const review = currentReview();
   return `
     <div class="review-layout">
+      ${renderMonthlyProjectGoals()}
       <section class="panel">
         <div class="panel-heading">
           <div>
@@ -532,6 +899,10 @@ function renderReviewDashboard() {
             <span>来週の改善約束</span>
             <textarea data-review-field="nextPromise">${escapeHtml(review.nextPromise)}</textarea>
           </label>
+          <label>
+            <span>話し合いたいこと</span>
+            <textarea data-review-field="discussionItems" placeholder="- 話し合いたい議題&#10;- 確認したいこと">${escapeHtml(review.discussionItems ?? '')}</textarea>
+          </label>
         </div>
       </section>
     </div>
@@ -539,8 +910,9 @@ function renderReviewDashboard() {
 }
 
 function render() {
+  if (!state) return;
   ensureSelectedTask();
-  const view = createDashboardViewModel(state, currentDate);
+  const view = createDashboardViewModel(state, currentDate, activeUserId);
   root.innerHTML = `
     <div class="app-shell">
       ${renderHeader(view)}
@@ -562,26 +934,51 @@ function handleClick(event) {
     activeTab = button.dataset.tab;
     render();
   }
+  if (action === 'switch-user') {
+    activeUserId = button.dataset.userId;
+    focusedCell = null;
+    replaceCurrentUserUrl(activeUserId);
+    render();
+  }
+  if (action === 'copy-user-url') {
+    const url = buildUserUrl(currentPageUrl(), button.dataset.userId);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).catch((error) => console.error('Failed to copy user URL', error));
+    }
+  }
+  if (action === 'logout') {
+    authController.logout().catch((error) => console.error('Failed to logout', error));
+  }
   if (action === 'select-task') {
     selectedTaskId = button.dataset.taskId;
     render();
   }
   if (action === 'set-timeline') {
-    commit(
-      setTimelineEntry(
-        state,
-        button.dataset.collection,
-        currentDate,
-        Number(button.dataset.hour),
-        selectedTaskId
-      )
-    );
+    const collectionName = button.dataset.collection;
+    const hour = Number(button.dataset.hour);
+    const entry = entryFor(collectionName, hour, activeUserId);
+    focusedCell = { collectionName, userId: activeUserId, date: currentDate, hour };
+    const nextState = selectedTaskId
+      ? setTimelineEntry(
+          state,
+          collectionName,
+          activeUserId,
+          currentDate,
+          hour,
+          selectedTaskId,
+          entry?.note ?? ''
+        )
+      : clearTimelineEntry(state, collectionName, activeUserId, currentDate, hour);
+    commit(nextState);
   }
   if (action === 'copy-plan') {
-    commit(copyPlanToActuals(state, currentDate));
+    commit(copyPlanToActuals(state, activeUserId, currentDate));
   }
   if (action === 'increment-count') {
-    commit(incrementDailyCount(state, currentDate, button.dataset.taskId, Number(button.dataset.delta)));
+    commit(incrementDailyCount(state, currentDate, button.dataset.taskId, Number(button.dataset.delta), activeUserId));
+  }
+  if (action === 'move-project') {
+    commit(moveProjectOrder(state, button.dataset.projectId, button.dataset.direction));
   }
   if (action === 'hide-task') {
     commit(hideTask(state, button.dataset.taskId));
@@ -595,14 +992,62 @@ function handleClick(event) {
   }
 }
 
+function handleFocusIn(event) {
+  const cell = event.target.closest?.('[data-timeline-cell]');
+  if (!cell) return;
+  focusedCell = {
+    collectionName: cell.dataset.collection,
+    userId: activeUserId,
+    date: currentDate,
+    hour: Number(cell.dataset.hour)
+  };
+}
+
+function handleKeyDown(event) {
+  if (event.key !== 'Backspace' || !focusedCell) return;
+  if (event.target.closest?.('input, textarea, select')) return;
+  if (focusedCell.collectionName !== 'dayPlans') return;
+
+  event.preventDefault();
+  const cellToClear = focusedCell;
+  focusedCell = null;
+  commit(
+    clearTimelineEntry(
+      state,
+      cellToClear.collectionName,
+      cellToClear.userId,
+      cellToClear.date,
+      cellToClear.hour
+    )
+  );
+}
+
 function handleChange(event) {
   const target = event.target;
   if (target.dataset.field === 'current-date') {
     currentDate = target.value;
+    focusedCell = null;
     render();
   }
-  if (target.dataset.field === 'weekly-goal') {
-    commit(upsertWeeklyGoal(state, weekStart(), target.dataset.taskId, Number(target.value)));
+  if (target.dataset.field === 'start-hour' || target.dataset.field === 'end-hour') {
+    const current = getTimelineSetting(state, activeUserId, currentDate);
+    const nextStart =
+      target.dataset.field === 'start-hour' ? Number(target.value) : current.startHour;
+    const nextEnd = target.dataset.field === 'end-hour' ? Number(target.value) : current.endHour;
+    focusedCell = null;
+    commit(upsertTimelineSetting(state, activeUserId, currentDate, nextStart, nextEnd));
+  }
+  if (target.dataset.field === 'timeline-note') {
+    commit(
+      setTimelineNote(
+        state,
+        target.dataset.collection,
+        activeUserId,
+        currentDate,
+        Number(target.dataset.hour),
+        target.value
+      )
+    );
   }
   if (target.dataset.taskField) {
     const field = target.dataset.taskField;
@@ -616,9 +1061,43 @@ function handleChange(event) {
 
 function handleInput(event) {
   const target = event.target;
+  if (target.dataset.field === 'timeline-note') {
+    commit(
+      setTimelineNote(
+        state,
+        target.dataset.collection,
+        activeUserId,
+        currentDate,
+        Number(target.dataset.hour),
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'weekly-project-goal') {
+    commit(upsertWeeklyProjectGoal(state, activeUserId, weekStart(), target.dataset.projectId, target.value), {
+      render: false
+    });
+    return;
+  }
+  if (target.dataset.field === 'monthly-project-goal') {
+    commit(
+      upsertMonthlyProjectGoal(
+        state,
+        target.dataset.userId,
+        currentDate.slice(0, 7),
+        target.dataset.projectId,
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
   if (!target.dataset.reviewField) return;
-  state = upsertReview(state, weekStart(), { [target.dataset.reviewField]: target.value });
-  saveState(state);
+  commit(upsertReview(state, weekStart(), { [target.dataset.reviewField]: target.value }), {
+    render: false
+  });
 }
 
 function handleSubmit(event) {
@@ -626,6 +1105,26 @@ function handleSubmit(event) {
   if (!form) return;
   event.preventDefault();
   const formData = new FormData(form);
+  if (form.dataset.form === 'login') {
+    const email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    authState = { status: 'loading', user: null, error: '' };
+    root.innerHTML = renderAuthGate();
+    authController
+      .login(email, password)
+      .then((nextAuthState) => {
+        if (nextAuthState.error) {
+          authState = nextAuthState;
+          root.innerHTML = renderAuthGate();
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to login', error);
+        authState = { status: 'signed-out', user: null, error: 'ログインに失敗しました' };
+        root.innerHTML = renderAuthGate();
+      });
+    return;
+  }
   if (form.dataset.form === 'project') {
     const name = String(formData.get('name') ?? '').trim();
     if (!name) return;
@@ -646,16 +1145,69 @@ function handleSubmit(event) {
   }
 }
 
+function startAuthFlow() {
+  const authSubscription = authController.subscribe((nextAuthState) => {
+    authState = nextAuthState;
+    if (authState.status === 'signed-in') {
+      if (!unsubscribeState) {
+        subscribeSharedState();
+      }
+      return;
+    }
+    unsubscribeSharedState();
+    root.innerHTML = renderAuthGate();
+  });
+  if (authSubscription && typeof authSubscription.then === 'function') {
+    authSubscription
+      .then((unsubscribe) => {
+        unsubscribeAuth = unsubscribe;
+      })
+      .catch((error) => {
+        console.error('Failed to subscribe to auth', error);
+        authState = { status: 'signed-out', user: null, error: '認証を開始できませんでした' };
+        root.innerHTML = renderAuthGate();
+      });
+  } else {
+    unsubscribeAuth = authSubscription;
+  }
+}
+
 function boot() {
   root = document.getElementById('root');
   currentDate = todayKey();
-  state = loadState(localStorage, currentDate);
-  selectedTaskId = sortedTasks()[0]?.id ?? '';
+  activeUserId = getUserIdFromUrl(window.location.href, activeUserId);
+  authController = createAuthController({ firebaseConfig });
   root.addEventListener('click', handleClick);
+  root.addEventListener('focusin', handleFocusIn);
+  document.addEventListener('keydown', handleKeyDown);
   root.addEventListener('change', handleChange);
   root.addEventListener('input', handleInput);
   root.addEventListener('submit', handleSubmit);
-  render();
+  root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
+  startAuthFlow();
+  return;
+  root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
+  const subscription = adapter.subscribe((nextState) => {
+    state = nextState;
+    ensureSelectedTask();
+    if (suppressNextAdapterRender) {
+      suppressNextAdapterRender = false;
+      return;
+    }
+    render();
+  });
+  if (subscription && typeof subscription.then === 'function') {
+    subscription
+      .then((unsubscribe) => {
+        unsubscribeState = unsubscribe;
+      })
+      .catch((error) => {
+        console.error('Failed to subscribe to state', error);
+        root.innerHTML = '<div class="app-shell"><section class="panel">状態の読み込みに失敗しました</section></div>';
+      });
+  } else {
+    unsubscribeState = subscription;
+  }
 }
 
 if (typeof document !== 'undefined') {

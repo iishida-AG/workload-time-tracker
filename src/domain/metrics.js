@@ -19,53 +19,130 @@ function withinDates(entry, dates) {
   return dates.has(entry.date);
 }
 
-export function copyPlanToActuals(state, date) {
+function matchesUser(row, userId) {
+  return userId === undefined || (row.userId ?? 'ishida') === userId;
+}
+
+function sameTimelineSlot(entry, userId, date, hour) {
+  return (entry.userId ?? 'ishida') === userId && entry.date === date && entry.hour === hour;
+}
+
+export function copyPlanToActuals(state, userId, date) {
+  if (date === undefined) {
+    const next = copyPlanToActuals(state, 'ishida', userId);
+    return {
+      ...next,
+      dayActuals: next.dayActuals.map((entry) => {
+        if ((entry.userId ?? 'ishida') !== 'ishida' || entry.date !== userId) {
+          return entry;
+        }
+        const { userId: ignoredUserId, note, ...legacyEntry } = entry;
+        return note ? { ...legacyEntry, note } : legacyEntry;
+      })
+    };
+  }
+
   const copiedPlans = state.dayPlans
-    .filter((entry) => entry.date === date)
-    .map((entry) => ({ date: entry.date, hour: entry.hour, taskId: entry.taskId, note: entry.note }))
-    .map((entry) => {
-      const clean = { date: entry.date, hour: entry.hour, taskId: entry.taskId };
-      if (entry.note) clean.note = entry.note;
-      return clean;
-    });
+    .filter((entry) => (entry.userId ?? 'ishida') === userId && entry.date === date)
+    .map((entry) => ({
+      userId,
+      date: entry.date,
+      hour: entry.hour,
+      taskId: entry.taskId,
+      note: entry.note ?? ''
+    }));
 
   return {
     ...state,
-    dayActuals: [...state.dayActuals.filter((entry) => entry.date !== date), ...copiedPlans]
+    dayActuals: [
+      ...state.dayActuals.filter((entry) => !((entry.userId ?? 'ishida') === userId && entry.date === date)),
+      ...copiedPlans
+    ]
   };
 }
 
-export function incrementDailyCount(state, date, taskId, delta) {
+export function incrementDailyCount(state, date, taskId, delta, userId = 'ishida') {
   let found = false;
   const dailyCounts = state.dailyCounts.map((row) => {
-    if (row.date !== date || row.taskId !== taskId) {
+    if ((row.userId ?? 'ishida') !== userId || row.date !== date || row.taskId !== taskId) {
       return row;
     }
     found = true;
-    return { ...row, count: Math.max(0, row.count + delta) };
+    return { ...row, userId: row.userId ?? userId, count: Math.max(0, row.count + delta) };
   });
 
   if (!found) {
-    dailyCounts.push({ date, taskId, count: Math.max(0, delta) });
+    dailyCounts.push({ userId, date, taskId, count: Math.max(0, delta) });
   }
 
   return { ...state, dailyCounts };
 }
 
-export function setTimelineEntry(state, collectionName, date, hour, taskId) {
-  const entries = state[collectionName].filter((entry) => !(entry.date === date && entry.hour === hour));
+export function setTimelineEntry(state, collectionName, userId, date, hour, taskId, note = '') {
+  const entries = state[collectionName].filter((entry) => !sameTimelineSlot(entry, userId, date, hour));
   if (taskId) {
-    entries.push({ date, hour, taskId });
+    entries.push({ userId, date, hour, taskId, note });
   }
   return { ...state, [collectionName]: entries };
 }
 
+export function setTimelineNote(state, collectionName, userId, date, hour, note) {
+  const entries = state[collectionName].map((entry) =>
+    sameTimelineSlot(entry, userId, date, hour) ? { ...entry, note } : entry
+  );
+  return { ...state, [collectionName]: entries };
+}
+
+export function clearTimelineEntry(state, collectionName, userId, date, hour) {
+  return {
+    ...state,
+    [collectionName]: state[collectionName].filter((entry) => !sameTimelineSlot(entry, userId, date, hour))
+  };
+}
+
+function formatHour(hour) {
+  return `${hour}:00`;
+}
+
+export function formatDailyScheduleText(state, collectionName, userId, date, startHour, endHour) {
+  const tasks = taskById(state.tasks);
+  return Array.from({ length: endHour - startHour }, (_, index) => startHour + index)
+    .map((hour) => {
+      const entry = state[collectionName].find((row) => sameTimelineSlot(row, userId, date, hour));
+      const taskName = entry ? tasks.get(entry.taskId)?.name ?? '未入力' : '未入力';
+      return `${formatHour(hour)}-${formatHour(hour + 1)} ${taskName}：「${entry?.note ?? ''}」`;
+    })
+    .join('\n');
+}
+
+export function computeProjectCountSummaries(state, userId, weekStart) {
+  const dates = new Set(getWeekDates(weekStart));
+  return state.projects
+    .filter((project) => project.status === 'active')
+    .sort((a, b) => a.order - b.order)
+    .map((project) => {
+      const projectTaskIds = state.tasks
+        .filter((task) => task.projectId === project.id && task.countable)
+        .map((task) => task.id);
+      const actualCount = state.dailyCounts
+        .filter(
+          (row) =>
+            (userId === 'all' || (row.userId ?? 'ishida') === userId) &&
+            dates.has(row.date) &&
+            projectTaskIds.includes(row.taskId)
+        )
+        .reduce((sum, row) => sum + row.count, 0);
+      return { projectId: project.id, projectName: project.name, actualCount };
+    });
+}
+
 export function computeReviewMetrics(state, periodStart, options = {}) {
   const periodMode = options.periodMode ?? 'week';
+  const userId = options.userId;
   const dates = new Set(periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart));
   const tasks = taskById(state.tasks);
-  const actuals = state.dayActuals.filter((entry) => withinDates(entry, dates));
-  const plans = state.dayPlans.filter((entry) => withinDates(entry, dates));
+  const actuals = state.dayActuals.filter((entry) => withinDates(entry, dates) && matchesUser(entry, userId));
+  const plans = state.dayPlans.filter((entry) => withinDates(entry, dates) && matchesUser(entry, userId));
   const totalActualHours = actuals.length;
   const capacityHours =
     periodMode === 'month' ? (dates.size / 7) * WEEK_CAPACITY_HOURS : WEEK_CAPACITY_HOURS;
@@ -95,7 +172,7 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   const goalRows = [...goalTotals.entries()].map(([taskId, targetCount]) => {
     const task = tasks.get(taskId);
     const actualCount = state.dailyCounts
-      .filter((row) => row.taskId === taskId && dates.has(row.date))
+      .filter((row) => row.taskId === taskId && dates.has(row.date) && matchesUser(row, userId))
       .reduce((sum, row) => sum + row.count, 0);
     const actualHours = actuals.filter((entry) => entry.taskId === taskId).length;
     return {

@@ -1,6 +1,13 @@
 export const HOURS = Array.from({ length: 11 }, (_, index) => index + 9);
 export const WEEK_CAPACITY_HOURS = 40;
 
+export function getTimelineHours(startHour = 9, endHour = 20) {
+  const numericStartHour = Number(startHour ?? 9);
+  const start = Math.max(0, Math.min(23, numericStartHour === 0 ? 0 : numericStartHour || 9));
+  const end = Math.max(start + 1, Math.min(24, Number(endHour) || 20));
+  return Array.from({ length: end - start }, (_, index) => start + index);
+}
+
 export function toDateKey(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

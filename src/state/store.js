@@ -20,8 +20,108 @@ function makeId(prefix, text, existingIds) {
   return id;
 }
 
+function sanitizeTimelineHour(value, fallback) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
+    return fallback;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export function createAppState(today = new Date().toISOString().slice(0, 10)) {
   return createInitialState(getWeekStart(today));
+}
+
+export function normalizeState(state, defaultUserId = 'ishida') {
+  return {
+    ...state,
+    timelineSettings: (state.timelineSettings ?? []).map((setting) => ({
+      userId: setting.userId ?? defaultUserId,
+      ...setting
+    })),
+    weeklyProjectGoals: (state.weeklyProjectGoals ?? []).map((goal) => ({
+      userId: goal.userId ?? defaultUserId,
+      ...goal
+    })),
+    monthlyProjectGoals: (state.monthlyProjectGoals ?? []).map((goal) => ({
+      userId: goal.userId ?? defaultUserId,
+      ...goal
+    })),
+    dayPlans: (state.dayPlans ?? []).map((entry) => ({
+      userId: entry.userId ?? defaultUserId,
+      note: entry.note ?? '',
+      ...entry
+    })),
+    dayActuals: (state.dayActuals ?? []).map((entry) => ({
+      userId: entry.userId ?? defaultUserId,
+      note: entry.note ?? '',
+      ...entry
+    })),
+    dailyCounts: (state.dailyCounts ?? []).map((row) => ({
+      userId: row.userId ?? defaultUserId,
+      ...row
+    })),
+    weeklyReviews: (state.weeklyReviews ?? []).map((review) => ({
+      discussionItems: '',
+      ...review
+    }))
+  };
+}
+
+export function getTimelineSetting(state, userId, date) {
+  const setting = (state.timelineSettings ?? []).find(
+    (row) => row.userId === userId && row.date === date
+  );
+  return { startHour: setting?.startHour ?? 9, endHour: setting?.endHour ?? 20 };
+}
+
+export function upsertTimelineSetting(state, userId, date, startHour, endHour) {
+  const cleanStart = Math.max(0, Math.min(23, sanitizeTimelineHour(startHour, 9)));
+  const cleanEnd = Math.max(cleanStart + 1, Math.min(24, sanitizeTimelineHour(endHour, 20)));
+  const exists = (state.timelineSettings ?? []).some(
+    (row) => row.userId === userId && row.date === date
+  );
+  const row = { userId, date, startHour: cleanStart, endHour: cleanEnd };
+  return {
+    ...state,
+    timelineSettings: exists
+      ? state.timelineSettings.map((item) =>
+          item.userId === userId && item.date === date ? row : item
+        )
+      : [...(state.timelineSettings ?? []), row]
+  };
+}
+
+export function upsertWeeklyProjectGoal(state, userId, weekStart, projectId, goalText) {
+  const exists = (state.weeklyProjectGoals ?? []).some(
+    (row) => row.userId === userId && row.weekStart === weekStart && row.projectId === projectId
+  );
+  const row = { userId, weekStart, projectId, goalText };
+  return {
+    ...state,
+    weeklyProjectGoals: exists
+      ? state.weeklyProjectGoals.map((item) =>
+          item.userId === userId && item.weekStart === weekStart && item.projectId === projectId
+            ? row
+            : item
+        )
+      : [...(state.weeklyProjectGoals ?? []), row]
+  };
+}
+
+export function upsertMonthlyProjectGoal(state, userId, month, projectId, goalText) {
+  const exists = (state.monthlyProjectGoals ?? []).some(
+    (row) => row.userId === userId && row.month === month && row.projectId === projectId
+  );
+  const row = { userId, month, projectId, goalText };
+  return {
+    ...state,
+    monthlyProjectGoals: exists
+      ? state.monthlyProjectGoals.map((item) =>
+          item.userId === userId && item.month === month && item.projectId === projectId ? row : item
+        )
+      : [...(state.monthlyProjectGoals ?? []), row]
+  };
 }
 
 export function addProject(state, name) {
@@ -46,6 +146,34 @@ export function updateProject(state, projectId, patch) {
     projects: state.projects.map((project) =>
       project.id === projectId ? { ...project, ...patch, name: patch.name?.trim() ?? project.name } : project
     )
+  };
+}
+
+export function moveProjectOrder(state, projectId, direction) {
+  const activeProjects = state.projects
+    .filter((project) => project.status === 'active')
+    .sort((a, b) => a.order - b.order);
+  const index = activeProjects.findIndex((project) => project.id === projectId);
+  const neighborIndex = direction === 'up' ? index - 1 : index + 1;
+
+  if (index < 0 || neighborIndex < 0 || neighborIndex >= activeProjects.length) {
+    return state;
+  }
+
+  const current = activeProjects[index];
+  const neighbor = activeProjects[neighborIndex];
+
+  return {
+    ...state,
+    projects: state.projects.map((project) => {
+      if (project.id === current.id) {
+        return { ...project, order: neighbor.order };
+      }
+      if (project.id === neighbor.id) {
+        return { ...project, order: current.order };
+      }
+      return project;
+    })
   };
 }
 
@@ -110,6 +238,7 @@ export function upsertReview(state, weekStart, patch) {
     goalReflection: patch.goalReflection ?? existing?.goalReflection ?? '',
     overtimeCause: patch.overtimeCause ?? existing?.overtimeCause ?? '',
     nextPromise: patch.nextPromise ?? existing?.nextPromise ?? '',
+    discussionItems: patch.discussionItems ?? existing?.discussionItems ?? '',
     updatedAt: new Date().toISOString()
   };
   const weeklyReviews = existing

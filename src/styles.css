@@ -48,6 +48,62 @@ button {
   padding: 24px;
 }
 
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-panel {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 16px;
+  padding: 24px;
+  border: 1px solid #dde3ec;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 16px 40px rgba(31, 45, 61, 0.09);
+}
+
+.auth-panel h1,
+.auth-panel p {
+  margin: 0;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.auth-form span,
+.auth-note {
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-form input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+}
+
+.auth-error {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff1f2;
+  color: #b42318;
+  font-weight: 700;
+}
+
 .app-header,
 .reminder-strip,
 .panel {
@@ -87,15 +143,26 @@ button {
 }
 
 .tab-nav,
+.header-actions,
 .toolbar,
+.user-switcher,
+.time-range-controls,
 .kpi-strip,
 .counter-actions,
 .stepper,
 .segmented,
+.share-links,
+.project-order-controls,
 .project-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.header-actions {
+  display: grid;
+  justify-items: end;
+  gap: 10px;
 }
 
 .tab-nav {
@@ -103,9 +170,15 @@ button {
   justify-content: flex-end;
 }
 
+.toolbar {
+  flex-wrap: wrap;
+}
+
 .tab-button,
+.user-button,
 .primary-button,
 .ghost-button,
+.icon-button,
 .segmented button,
 .stepper button {
   display: inline-flex;
@@ -127,6 +200,7 @@ button {
 }
 
 .tab-button.active,
+.user-button.active,
 .primary-button {
   border-color: #2364d2;
   background: #2364d2;
@@ -135,6 +209,98 @@ button {
 
 .ghost-button {
   background: #f8fafc;
+}
+
+.icon-button {
+  width: 40px;
+  padding: 0;
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.user-switcher,
+.time-range-controls {
+  flex-wrap: wrap;
+  padding: 4px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.user-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.share-links {
+  max-width: min(100%, 620px);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 4px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.share-links > span {
+  padding: 0 8px;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.share-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: #2364d2;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.share-links a:hover {
+  background: #edf4ff;
+}
+
+.account-menu {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.time-range-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.time-range-controls span,
+.timeline-note-wrap span,
+.copy-block span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.time-range-controls select {
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: #fff;
+  color: #1d2433;
 }
 
 .reminder-strip {
@@ -268,9 +434,16 @@ main {
   gap: 8px;
 }
 
+.timeline-entry {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.8fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
 .timeline-cell {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   grid-template-areas:
     "hour task"
     "hour project";
@@ -284,6 +457,11 @@ main {
   background: #fff;
   color: #1d2433;
   text-align: left;
+}
+
+.timeline-cell.focused {
+  border-color: #2364d2;
+  box-shadow: 0 0 0 3px rgba(35, 100, 210, 0.14);
 }
 
 .timeline-cell:hover,
@@ -312,6 +490,73 @@ main {
   color: #667085;
   font-size: 12px;
   overflow-wrap: anywhere;
+}
+
+.timeline-note-wrap,
+.copy-block {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.timeline-note,
+.copy-text {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d2433;
+}
+
+.timeline-note {
+  min-height: 64px;
+  padding: 10px;
+}
+
+.timeline-note:disabled {
+  background: #f4f6f9;
+  color: #98a2b3;
+}
+
+.copy-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.copy-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.copy-text {
+  min-height: 132px;
+  padding: 10px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.partner-panel {
+  background: #fbfcff;
+}
+
+.time-range-badge {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .nature-core {
@@ -471,6 +716,132 @@ main {
 .stepper button {
   width: 40px;
   padding: 0;
+}
+
+.project-goal-panel,
+.monthly-goal-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.project-goal-panel {
+  margin-top: 16px;
+}
+
+.monthly-goal-panel {
+  grid-column: 1 / -1;
+}
+
+.project-goal-heading {
+  margin-bottom: 0;
+  padding: 0 2px;
+}
+
+.project-goal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-goal-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.project-goal-card h3 {
+  margin: 0;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.project-goal-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-order-controls {
+  flex: 0 0 auto;
+}
+
+.project-actual-count {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.project-actual-count span,
+.project-goal-text span,
+.project-count-meta {
+  display: block;
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.project-actual-count strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.project-goal-text {
+  display: grid;
+  gap: 6px;
+}
+
+.project-goal-text textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 96px;
+  padding: 10px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d2433;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.monthly-goal-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.project-count-list {
+  display: grid;
+}
+
+.project-count-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-top: 1px solid #e6ebf2;
+}
+
+.project-count-row:first-child {
+  border-top: 0;
+}
+
+.project-count-task {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.empty-state.compact {
+  padding: 0;
+  border: 0;
 }
 
 .task-form,
@@ -706,7 +1077,7 @@ main {
 
 .review-form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
 }
 
@@ -752,23 +1123,43 @@ main {
   }
 
   .tab-nav,
-  .toolbar {
+  .toolbar,
+  .header-actions,
+  .user-switcher,
+  .share-links,
+  .time-range-controls {
     justify-content: stretch;
+    justify-items: stretch;
   }
 
   .tab-button,
+  .user-button,
   .primary-button,
   .ghost-button,
-  .date-field {
+  .date-field,
+  .time-range-controls {
     flex: 1 1 auto;
   }
 
   .kpi-strip,
   .timeline-grid,
+  .timeline-entry,
+  .copy-grid,
   .summary-grid,
+  .project-goal-grid,
+  .monthly-goal-fields,
+  .project-count-row,
   .review-form,
   .ratio-card {
     grid-template-columns: 1fr;
+  }
+
+  .project-goal-card-header {
+    flex-direction: column;
+  }
+
+  .project-actual-count {
+    text-align: left;
   }
 
   .task-row {
@@ -784,6 +1175,6 @@ main {
   }
 
   .timeline-cell {
-    grid-template-columns: 58px minmax(0, 1fr);
+    grid-template-columns: 104px minmax(0, 1fr);
   }
 }

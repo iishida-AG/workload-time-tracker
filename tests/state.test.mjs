@@ -2,10 +2,18 @@ import assert from 'node:assert/strict';
 import {
   addTask,
   createAppState,
+  getTimelineSetting,
   hideTask,
+  normalizeState,
+  moveProjectOrder,
   updateTask,
+  upsertMonthlyProjectGoal,
+  upsertReview,
+  upsertTimelineSetting,
+  upsertWeeklyProjectGoal,
   upsertWeeklyGoal
 } from '../src/state/store.js';
+import { incrementDailyCount } from '../src/domain/metrics.js';
 
 function test(name, fn) {
   try {
@@ -79,4 +87,100 @@ test('upsertWeeklyGoal replaces an existing target for the same task and week', 
 
   assert.equal(updated.weeklyGoals.filter((goal) => goal.taskId === 'ses-sales-1').length, 1);
   assert.equal(updated.weeklyGoals.find((goal) => goal.taskId === 'ses-sales-1').targetCount, 18);
+});
+
+test('normalizeState adds user fields and new collections to older local data', () => {
+  const oldState = {
+    ...createAppState('2026-08-03'),
+    dayPlans: [{ date: '2026-08-03', hour: 9, taskId: 'ses-sales-1', note: 'initial outreach' }],
+    dailyCounts: [{ date: '2026-08-03', taskId: 'ses-sales-1', count: 2 }]
+  };
+
+  const normalized = normalizeState(oldState, 'tanoue');
+
+  assert.equal(normalized.dayPlans[0].userId, 'tanoue');
+  assert.equal(normalized.dailyCounts[0].userId, 'tanoue');
+  assert.deepEqual(normalized.timelineSettings, []);
+  assert.deepEqual(normalized.weeklyProjectGoals, []);
+  assert.deepEqual(normalized.monthlyProjectGoals, []);
+});
+
+test('upsertTimelineSetting stores day-specific hours per user', () => {
+  const state = createAppState('2026-08-03');
+  const next = upsertTimelineSetting(state, 'ishida', '2026-08-05', 10, 20);
+
+  assert.deepEqual(getTimelineSetting(next, 'ishida', '2026-08-05'), { startHour: 10, endHour: 20 });
+  assert.deepEqual(getTimelineSetting(next, 'tanoue', '2026-08-05'), { startHour: 9, endHour: 20 });
+});
+
+test('upsertTimelineSetting preserves midnight as a valid start hour', () => {
+  const state = createAppState('2026-08-03');
+  const next = upsertTimelineSetting(state, 'ishida', '2026-08-05', 0, 2);
+
+  assert.deepEqual(getTimelineSetting(next, 'ishida', '2026-08-05'), { startHour: 0, endHour: 2 });
+});
+
+test('weekly and monthly project goals are free text per user and project', () => {
+  const state = createAppState('2026-08-03');
+  const weekly = upsertWeeklyProjectGoal(
+    state,
+    'ishida',
+    '2026-08-03',
+    'ses-sales',
+    'Complete initial outreach'
+  );
+  const monthly = upsertMonthlyProjectGoal(
+    weekly,
+    'ishida',
+    '2026-08',
+    'ses-sales',
+    'Close ten opportunities this month'
+  );
+
+  assert.equal(weekly.weeklyProjectGoals[0].goalText, 'Complete initial outreach');
+  assert.equal(monthly.monthlyProjectGoals[0].goalText, 'Close ten opportunities this month');
+});
+
+test('incrementDailyCount stores counts per user', () => {
+  const state = createAppState('2026-08-03');
+  const next = incrementDailyCount(state, '2026-08-05', 'ses-sales-1', 1, 'tanoue');
+
+  assert.deepEqual(next.dailyCounts.find((row) => row.userId === 'tanoue'), {
+    userId: 'tanoue',
+    date: '2026-08-05',
+    taskId: 'ses-sales-1',
+    count: 1
+  });
+});
+
+test('upsertReview stores discussion items as newline bullet text', () => {
+  const state = createAppState('2026-08-03');
+  const discussionItems = '- Review outreach cadence\n- Identify blockers';
+  const next = upsertReview(state, '2026-08-03', { discussionItems });
+
+  assert.equal(next.weeklyReviews[0].discussionItems, discussionItems);
+});
+
+test('moveProjectOrder swaps a project with its neighbor', () => {
+  const state = createAppState('2026-08-03');
+  const movedUp = moveProjectOrder(state, 'telecom-sales', 'up');
+
+  assert.deepEqual(
+    movedUp.projects.sort((a, b) => a.order - b.order).map((project) => project.id).slice(0, 3),
+    ['ses-sales', 'telecom-sales', 'recruiting-sales']
+  );
+
+  const movedDown = moveProjectOrder(movedUp, 'telecom-sales', 'down');
+
+  assert.deepEqual(
+    movedDown.projects.sort((a, b) => a.order - b.order).map((project) => project.id).slice(0, 3),
+    ['ses-sales', 'recruiting-sales', 'telecom-sales']
+  );
+});
+
+test('moveProjectOrder leaves boundary projects unchanged', () => {
+  const state = createAppState('2026-08-03');
+  const unchanged = moveProjectOrder(state, 'ses-sales', 'up');
+
+  assert.deepEqual(unchanged.projects, state.projects);
 });

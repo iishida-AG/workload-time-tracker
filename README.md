@@ -43,3 +43,34 @@ node scripts/build.mjs
 ```bash
 firebase deploy --only hosting
 ```
+
+## Firebase realtime setup
+
+1. Create a Firebase project on the Spark plan in the Firebase Console.
+2. Add a Web app and enter its configuration values in `src/firebase-config.js`.
+3. Create a Cloud Firestore database and use test mode only during initial setup.
+4. Open Firestore rules are risky. Use Authentication and email-restricted rules before sharing the URL.
+5. When the Firebase configuration is incomplete, the app uses localStorage instead.
+
+## Firebase Authentication setup
+
+For the public GitHub Pages URL, enable login before shared data is shown:
+
+1. In Firebase Console, open Authentication.
+2. Enable Email/Password sign-in.
+3. Add only the two users who should use the app: Ishida and Tanoue.
+4. Open Authentication settings and add the GitHub Pages domain, for example `<owner>.github.io`, to Authorized domains.
+5. Open Firestore Rules and use `firestore.rules.example` as the template.
+6. Replace `ISHIDA_EMAIL@example.com` and `TANOUE_EMAIL@example.com` with the two real login email addresses before publishing the rules.
+
+Do not add a signup form to the app. User creation should stay in Firebase Console so only approved accounts can log in.
+
+## GitHub Pages
+
+GitHub Pages can host this static app from a public repository on GitHub Free.
+Use the published Pages URL with a `user` query parameter:
+
+- Ishida: `https://<owner>.github.io/<repository>/?user=ishida`
+- Tanoue: `https://<owner>.github.io/<repository>/?user=tanoue`
+
+The app also shows both share links in the header after deployment.

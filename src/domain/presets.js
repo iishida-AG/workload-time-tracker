@@ -46,6 +46,9 @@ export function createInitialState(today) {
       ? [{ weekStart, taskId: firstCountableTask.id, targetCount: 20 }]
       : [],
     dailyCounts: [],
-    weeklyReviews: []
+    weeklyReviews: [],
+    timelineSettings: [],
+    weeklyProjectGoals: [],
+    monthlyProjectGoals: []
   };
 }
