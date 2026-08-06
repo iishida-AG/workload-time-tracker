@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import {
   addTask,
   createAppState,
+  deleteProject,
+  deleteTask,
   getTimelineSetting,
   hideTask,
   normalizeState,
@@ -78,6 +80,32 @@ test('hideTask marks a task hidden and leaves existing historical entries intact
 
   assert.equal(next.tasks.find((task) => task.id === 'ses-sales-1').status, 'hidden');
   assert.deepEqual(next.dayActuals, [{ date: '2026-08-03', hour: 9, taskId: 'ses-sales-1' }]);
+});
+
+test('deleteTask marks a task deleted while preserving historical entries', () => {
+  const state = {
+    ...createAppState('2026-08-03'),
+    dayPlans: [{ date: '2026-08-03', hour: 9, taskId: 'ses-sales-1' }]
+  };
+  const next = deleteTask(state, 'ses-sales-1');
+
+  assert.equal(next.tasks.find((task) => task.id === 'ses-sales-1').status, 'deleted');
+  assert.deepEqual(next.dayPlans, [{ date: '2026-08-03', hour: 9, taskId: 'ses-sales-1' }]);
+});
+
+test('deleteProject marks a project and its tasks deleted', () => {
+  const state = createAppState('2026-08-03');
+  const next = deleteProject(state, 'ses-sales');
+
+  assert.equal(next.projects.find((project) => project.id === 'ses-sales').status, 'deleted');
+  assert.ok(next.tasks.filter((task) => task.projectId === 'ses-sales').every((task) => task.status === 'deleted'));
+});
+
+test('updateTask edits the free text task description', () => {
+  const state = createAppState('2026-08-03');
+  const next = updateTask(state, 'ses-sales-1', { description: '提案前にスキル要約を確認' });
+
+  assert.equal(next.tasks.find((task) => task.id === 'ses-sales-1').description, '提案前にスキル要約を確認');
 });
 
 test('upsertWeeklyGoal replaces an existing target for the same task and week', () => {

@@ -17,6 +17,8 @@ import { createAuthController } from './state/auth.js';
 import {
   addProject,
   addTask,
+  deleteProject,
+  deleteTask,
   getTimelineSetting,
   hideTask,
   moveProjectOrder,
@@ -124,7 +126,9 @@ function icon(name) {
     eye: '<path d="M2 12s3-8 10-8 10 8 10 8-3 8-10 8S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>',
     arrowUp: '<path d="m18 15-6-6-6 6"/>',
-    arrowDown: '<path d="m6 9 6 6 6-6"/>'
+    arrowDown: '<path d="m6 9 6 6 6-6"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    message: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/>'
   };
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] ?? paths.target}</svg>`;
 }
@@ -143,7 +147,7 @@ function displayUserLabel(userId) {
 
 function sortedTasks(includeHidden = false) {
   return state.tasks
-    .filter((task) => includeHidden || task.status === 'active')
+    .filter((task) => task.status !== 'deleted' && (includeHidden || task.status === 'active'))
     .sort((a, b) => a.order - b.order);
 }
 
@@ -734,21 +738,34 @@ function renderMasterData() {
       </section>
       <section class="panel task-list-panel">
         ${state.projects
+          .filter((project) => project.status !== 'deleted')
           .sort((a, b) => a.order - b.order)
           .map((project) => {
-            const tasks = state.tasks.filter((task) => task.projectId === project.id).sort((a, b) => a.order - b.order);
+            const tasks = state.tasks
+              .filter((task) => task.projectId === project.id && task.status !== 'deleted')
+              .sort((a, b) => a.order - b.order);
             return `
               <div class="project-block">
                 <div class="project-title-row">
                   <input class="project-name-input" value="${escapeHtml(project.name)}" data-project-field="name" data-project-id="${escapeHtml(project.id)}" />
-                  <span>${tasks.length}件</span>
+                  <div class="project-title-actions">
+                    <span>${tasks.length}件</span>
+                    <button class="danger-button" data-action="delete-project" data-project-id="${escapeHtml(project.id)}" data-project-name="${escapeHtml(project.name)}">
+                      ${icon('trash')}
+                      <span>削除</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="task-table">
                   ${tasks
                     .map(
                       (task) => `
                         <article class="task-row ${task.status === 'hidden' ? 'muted' : ''}">
-                          <input value="${escapeHtml(task.name)}" data-task-field="name" data-task-id="${escapeHtml(task.id)}" />
+                          <div class="task-name-cell" title="${escapeHtml(task.description || '説明は未入力です')}">
+                            <input value="${escapeHtml(task.name)}" data-task-field="name" data-task-id="${escapeHtml(task.id)}" />
+                            <span class="comment-indicator">${icon('message')}</span>
+                          </div>
+                          <textarea class="task-description-input" data-task-field="description" data-task-id="${escapeHtml(task.id)}" placeholder="説明コメントを自由に記入">${escapeHtml(task.description ?? '')}</textarea>
                           <select data-task-field="projectId" data-task-id="${escapeHtml(task.id)}">${renderProjectOptions(task.projectId)}</select>
                           <select data-task-field="nature" data-task-id="${escapeHtml(task.id)}">${renderNatureOptions(task.nature)}</select>
                           <label class="checkbox-line small">
@@ -758,6 +775,10 @@ function renderMasterData() {
                           <button class="ghost-button" data-action="${task.status === 'hidden' ? 'show-task' : 'hide-task'}" data-task-id="${escapeHtml(task.id)}">
                             ${icon(task.status === 'hidden' ? 'eye' : 'eyeOff')}
                             <span>${task.status === 'hidden' ? '再表示' : '非表示'}</span>
+                          </button>
+                          <button class="danger-button" data-action="delete-task" data-task-id="${escapeHtml(task.id)}" data-task-name="${escapeHtml(task.name)}">
+                            ${icon('trash')}
+                            <span>削除</span>
                           </button>
                         </article>
                       `
@@ -985,6 +1006,16 @@ function handleClick(event) {
   }
   if (action === 'show-task') {
     commit(updateTask(state, button.dataset.taskId, { status: 'active' }));
+  }
+  if (action === 'delete-task') {
+    if (window.confirm(`${button.dataset.taskName}をマスタから削除しますか？`)) {
+      commit(deleteTask(state, button.dataset.taskId));
+    }
+  }
+  if (action === 'delete-project') {
+    if (window.confirm(`${button.dataset.projectName}と配下の小分類をマスタから削除しますか？`)) {
+      commit(deleteProject(state, button.dataset.projectId));
+    }
   }
   if (action === 'review-mode') {
     reviewMode = button.dataset.mode;

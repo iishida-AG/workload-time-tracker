@@ -669,6 +669,7 @@ main {
 .project-name-input,
 .task-row input,
 .task-row select,
+.task-row textarea,
 .review-form textarea {
   width: 100%;
   min-width: 0;
@@ -684,7 +685,8 @@ main {
 .project-form input,
 .project-name-input,
 .task-row input,
-.task-row select {
+.task-row select,
+.task-row textarea {
   min-height: 38px;
   padding: 0 10px;
 }
@@ -896,6 +898,12 @@ main {
   justify-content: space-between;
 }
 
+.project-title-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .project-title-row span {
   color: #667085;
   font-size: 12px;
@@ -914,7 +922,7 @@ main {
 
 .task-row {
   display: grid;
-  grid-template-columns: minmax(180px, 1.4fr) minmax(150px, 1fr) minmax(130px, 0.8fr) 82px 104px;
+  grid-template-columns: minmax(170px, 1.2fr) minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(120px, 0.8fr) 78px 96px 86px;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -926,6 +934,42 @@ main {
 .task-row.muted {
   background: #f4f6f9;
   opacity: 0.72;
+}
+
+.task-name-cell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-name-cell input {
+  min-width: 0;
+}
+
+.comment-indicator {
+  display: inline-flex;
+  color: #64748b;
+}
+
+.task-description-input {
+  min-height: 38px;
+  resize: vertical;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fff5f5;
+  color: #b42318;
+  font-weight: 800;
 }
 
 .review-layout {

@@ -35,6 +35,10 @@ export function createAppState(today = new Date().toISOString().slice(0, 10)) {
 export function normalizeState(state, defaultUserId = 'ishida') {
   return {
     ...state,
+    tasks: (state.tasks ?? []).map((task) => ({
+      description: '',
+      ...task
+    })),
     timelineSettings: (state.timelineSettings ?? []).map((setting) => ({
       userId: setting.userId ?? defaultUserId,
       ...setting
@@ -187,6 +191,7 @@ export function addTask(state, taskInput) {
         id: makeId('task', taskInput.name, ids),
         projectId: taskInput.projectId,
         name: taskInput.name.trim(),
+        description: taskInput.description?.trim() ?? '',
         nature: taskInput.nature,
         countable: Boolean(taskInput.countable),
         status: 'active',
@@ -205,6 +210,7 @@ export function updateTask(state, taskId, patch) {
             ...task,
             ...patch,
             name: patch.name === undefined ? task.name : patch.name.trim(),
+            description: patch.description === undefined ? task.description ?? '' : patch.description.trim(),
             countable: patch.countable === undefined ? task.countable : Boolean(patch.countable)
           }
         : task
@@ -214,6 +220,22 @@ export function updateTask(state, taskId, patch) {
 
 export function hideTask(state, taskId) {
   return updateTask(state, taskId, { status: 'hidden' });
+}
+
+export function deleteTask(state, taskId) {
+  return updateTask(state, taskId, { status: 'deleted' });
+}
+
+export function deleteProject(state, projectId) {
+  return {
+    ...state,
+    projects: state.projects.map((project) =>
+      project.id === projectId ? { ...project, status: 'deleted' } : project
+    ),
+    tasks: state.tasks.map((task) =>
+      task.projectId === projectId ? { ...task, status: 'deleted' } : task
+    )
+  };
 }
 
 export function upsertWeeklyGoal(state, weekStart, taskId, targetCount) {
