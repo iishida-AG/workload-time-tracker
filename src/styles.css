@@ -927,6 +927,10 @@ main {
   gap: 8px;
 }
 
+.project-title-actions .danger-button {
+  white-space: nowrap;
+}
+
 .project-title-row span {
   color: #667085;
   font-size: 12px;
@@ -945,13 +949,17 @@ main {
 
 .task-row {
   display: grid;
-  grid-template-columns: 64px minmax(170px, 1.2fr) minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(120px, 0.8fr) 78px 96px 86px;
-  gap: 8px;
+  grid-template-columns: 68px minmax(120px, 1.1fr) minmax(150px, 1.2fr) minmax(100px, 0.8fr) minmax(105px, 0.8fr) 58px 82px 78px;
+  gap: 6px;
   align-items: center;
-  padding: 10px;
+  padding: 8px;
   border: 1px solid #e1e7f0;
   border-radius: 8px;
   background: #fff;
+}
+
+.task-row > * {
+  min-width: 0;
 }
 
 .task-row.muted {
@@ -962,6 +970,24 @@ main {
 .task-order-actions {
   display: inline-flex;
   gap: 4px;
+}
+
+.task-order-actions .icon-button {
+  width: 32px;
+  min-height: 32px;
+}
+
+.task-row .ghost-button,
+.task-row .danger-button {
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.task-row .ghost-button span,
+.task-row .danger-button span {
+  white-space: nowrap;
 }
 
 .task-name-cell {
