@@ -492,7 +492,6 @@ function renderTimelineColumn(title, collectionName, view) {
               <span class="timeline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
             </button>
             <label class="timeline-note-wrap">
-              <span>自由記入</span>
               <input
                 class="timeline-note"
                 type="text"
@@ -500,7 +499,7 @@ function renderTimelineColumn(title, collectionName, view) {
                 data-field="timeline-note"
                 data-collection="${collectionName}"
                 data-hour="${hour}"
-                placeholder="自由記入"
+                aria-label="自由記入"
                 ${entry ? '' : 'disabled'}
               />
             </label>
