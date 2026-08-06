@@ -12,8 +12,8 @@ function test(name, fn) {
   }
 }
 
-test('createDashboardViewModel exposes the weekly reminder and KPI cards', () => {
-  const state = {
+function baseState() {
+  return {
     projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
     tasks: [
       {
@@ -26,6 +26,20 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
         order: 1
       }
     ],
+    weeklyGoals: [],
+    weeklyProjectGoals: [],
+    monthlyProjectGoals: [],
+    dailyCounts: [],
+    weeklyReviews: [],
+    dayPlans: [],
+    dayActuals: [],
+    timelineSettings: []
+  };
+}
+
+test('createDashboardViewModel exposes the weekly reminder and KPI cards', () => {
+  const state = {
+    ...baseState(),
     dayPlans: [{ date: '2026-08-03', hour: 9, taskId: 't1' }],
     dayActuals: [{ date: '2026-08-03', hour: 9, taskId: 't1' }],
     weeklyGoals: [{ weekStart: '2026-08-03', taskId: 't1', targetCount: 10 }],
@@ -38,10 +52,7 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
         nextPromise: 'Do three proposals by morning',
         updatedAt: '2026-08-01T10:00:00.000Z'
       }
-    ],
-    timelineSettings: [],
-    weeklyProjectGoals: [],
-    monthlyProjectGoals: []
+    ]
   };
 
   const view = createDashboardViewModel(state, '2026-08-03');
@@ -58,18 +69,7 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
 
 test('createDashboardViewModel separates selected user and partner copy text', () => {
   const state = {
-    projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
-    tasks: [
-      {
-        id: 't1',
-        projectId: 'p1',
-        name: 'Proposal',
-        nature: 'core',
-        countable: true,
-        status: 'active',
-        order: 1
-      }
-    ],
+    ...baseState(),
     timelineSettings: [
       { userId: 'ishida', date: '2026-08-05', startHour: 10, endHour: 12 },
       { userId: 'tanoue', date: '2026-08-05', startHour: 11, endHour: 13 }
@@ -81,12 +81,7 @@ test('createDashboardViewModel separates selected user and partner copy text', (
     dayActuals: [
       { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'sent' },
       { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'reviewed' }
-    ],
-    weeklyGoals: [],
-    weeklyProjectGoals: [],
-    monthlyProjectGoals: [],
-    dailyCounts: [],
-    weeklyReviews: []
+    ]
   };
 
   const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
@@ -96,11 +91,36 @@ test('createDashboardViewModel separates selected user and partner copy text', (
   assert.deepEqual(view.timelineSetting, { startHour: 10, endHour: 12 });
   assert.deepEqual(view.partnerTimelineSetting, { startHour: 11, endHour: 13 });
   assert.ok(view.planCopyText.includes('10:00-11:00 Proposal'));
-  assert.ok(view.actualCopyText.includes('Proposal (60分)'));
-  assert.ok(view.actualCopyText.includes('sent'));
+  assert.ok(view.actualCopyText.includes('今日の目標(達成数値)'));
+  assert.ok(view.actualCopyText.includes('10時～11時　Proposal、sent'));
   assert.ok(view.partnerPlanCopyText.includes('11:00-12:00 Proposal'));
-  assert.ok(view.partnerActualCopyText.includes('Proposal (60分)'));
-  assert.ok(view.partnerActualCopyText.includes('reviewed'));
+  assert.ok(view.partnerActualCopyText.includes('■今日の業務内容'));
+  assert.ok(view.partnerActualCopyText.includes('11時～12時　Proposal、reviewed'));
+});
+
+test('createDashboardViewModel builds full daily report text per user template', () => {
+  const state = {
+    ...baseState(),
+    timelineSettings: [
+      { userId: 'ishida', date: '2026-08-05', startHour: 10, endHour: 12 },
+      { userId: 'tanoue', date: '2026-08-05', startHour: 10, endHour: 12 }
+    ],
+    dayActuals: [
+      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'sent' },
+      { userId: 'tanoue', date: '2026-08-05', hour: 10, taskId: 't1', note: 'reviewed' }
+    ]
+  };
+
+  const ishidaView = createDashboardViewModel(state, '2026-08-05', 'ishida');
+  const tanoueView = createDashboardViewModel(state, '2026-08-05', 'tanoue');
+
+  assert.ok(ishidaView.dailyReportText.startsWith('お疲れ様です。'));
+  assert.ok(ishidaView.dailyReportText.includes('今日の目標(達成数値)\n\n'));
+  assert.ok(ishidaView.dailyReportText.includes('10時～11時　Proposal、sent'));
+  assert.ok(ishidaView.dailyReportText.includes('良かったこと\n\n'));
+  assert.ok(tanoueView.dailyReportText.includes('■今日の業務内容'));
+  assert.ok(tanoueView.dailyReportText.includes('10時～11時　Proposal、reviewed'));
+  assert.ok(tanoueView.dailyReportText.includes('■今日の定量目標達成率\n\n'));
 });
 
 test('user URLs select Ishida or Tanoue and ignore invalid values', () => {

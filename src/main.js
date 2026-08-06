@@ -450,7 +450,7 @@ function renderPartnerPreview(view) {
       </div>
       <div class="copy-grid">
         ${renderCopyTextarea('予定', view.partnerPlanCopyText)}
-        ${renderCopyTextarea('実績', view.partnerActualCopyText)}
+        ${renderCopyTextarea('日報全文', view.partnerActualCopyText)}
       </div>
     </section>
   `;
@@ -464,13 +464,13 @@ function renderDailyCopyTextBlocks(view) {
       <div class="copy-heading">
         <span class="section-kicker">コピー用テキスト</span>
         <div class="segmented compact-segmented">
-          <button class="${copyFormat === 'timeline' ? 'active' : ''}" data-action="copy-format" data-format="timeline">時系列</button>
+          <button class="${copyFormat === 'timeline' ? 'active' : ''}" data-action="copy-format" data-format="timeline">日報全文</button>
           <button class="${copyFormat === 'category' ? 'active' : ''}" data-action="copy-format" data-format="category">カテゴリ別</button>
         </div>
       </div>
       <div class="copy-grid">
         ${renderCopyTextarea('予定', planText)}
-        ${renderCopyTextarea('実績', actualText)}
+        ${renderCopyTextarea(copyFormat === 'category' ? 'カテゴリ別実績' : '日報全文', actualText)}
       </div>
     </div>
   `;
