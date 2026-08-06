@@ -31,10 +31,11 @@ function test(name, fn) {
 test('createAppState seeds the required project and task presets', () => {
   const state = createAppState('2026-08-03');
 
-  assert.equal(state.projects.length, 6);
-  assert.equal(state.tasks.length, 24);
+  assert.equal(state.projects.length, 7);
+  assert.equal(state.tasks.length, 25);
   assert.ok(state.tasks.some((task) => task.name === 'エンジニア提案' && task.countable));
   assert.ok(state.tasks.some((task) => task.name === 'メール/チャット' && !task.countable));
+  assert.ok(state.tasks.some((task) => task.name === '休憩' && task.nature === 'break' && !task.countable));
 });
 
 test('addTask creates an active task under a selected project', () => {
@@ -46,7 +47,7 @@ test('addTask creates an active task under a selected project', () => {
     countable: false
   });
 
-  assert.equal(next.tasks.length, 25);
+  assert.equal(next.tasks.length, 26);
   assert.ok(
     next.tasks.some(
       (task) =>
@@ -121,6 +122,8 @@ test('upsertWeeklyGoal replaces an existing target for the same task and week', 
 test('normalizeState adds user fields and new collections to older local data', () => {
   const oldState = {
     ...createAppState('2026-08-03'),
+    projects: createAppState('2026-08-03').projects.filter((project) => project.id !== 'break-control'),
+    tasks: createAppState('2026-08-03').tasks.filter((task) => task.id !== 'break-rest'),
     dayPlans: [{ date: '2026-08-03', hour: 9, taskId: 'ses-sales-1', note: 'initial outreach' }],
     dailyCounts: [{ date: '2026-08-03', taskId: 'ses-sales-1', count: 2 }]
   };
@@ -132,6 +135,8 @@ test('normalizeState adds user fields and new collections to older local data', 
   assert.deepEqual(normalized.timelineSettings, []);
   assert.deepEqual(normalized.weeklyProjectGoals, []);
   assert.deepEqual(normalized.monthlyProjectGoals, []);
+  assert.ok(normalized.projects.some((project) => project.id === 'break-control'));
+  assert.ok(normalized.tasks.some((task) => task.id === 'break-rest'));
 });
 
 test('upsertTimelineSetting stores day-specific hours per user', () => {

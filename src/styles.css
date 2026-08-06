@@ -692,6 +692,10 @@ main {
   border-left-color: #7c3aed;
 }
 
+.nature-break {
+  border-left-color: #64748b;
+}
+
 .nature-empty {
   border-left-color: #c8d0dc;
 }

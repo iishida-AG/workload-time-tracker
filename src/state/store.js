@@ -1,5 +1,5 @@
 import { getWeekStart } from '../domain/calendar.js';
-import { createInitialState } from '../domain/presets.js';
+import { createInitialState, DEFAULT_PROJECTS, DEFAULT_TASKS } from '../domain/presets.js';
 import { getActualItems, makeActualEntry } from '../domain/metrics.js';
 
 function nextOrder(items) {
@@ -29,17 +29,29 @@ function sanitizeTimelineHour(value, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function ensureDefaultRows(rows, defaultRows) {
+  const ids = new Set(rows.map((row) => row.id));
+  return [...rows, ...defaultRows.filter((row) => !ids.has(row.id))];
+}
+
 export function createAppState(today = new Date().toISOString().slice(0, 10)) {
   return createInitialState(getWeekStart(today));
 }
 
 export function normalizeState(state, defaultUserId = 'ishida') {
-  return {
-    ...state,
-    tasks: (state.tasks ?? []).map((task) => ({
+  const projects = ensureDefaultRows(state.projects ?? [], DEFAULT_PROJECTS);
+  const tasks = ensureDefaultRows(
+    (state.tasks ?? []).map((task) => ({
       description: '',
       ...task
     })),
+    DEFAULT_TASKS
+  );
+
+  return {
+    ...state,
+    projects,
+    tasks,
     timelineSettings: (state.timelineSettings ?? []).map((setting) => ({
       userId: setting.userId ?? defaultUserId,
       ...setting

@@ -48,6 +48,15 @@ const state = {
       countable: false,
       status: 'active',
       order: 2
+    },
+    {
+      id: 'break',
+      projectId: 'break-project',
+      name: 'Break',
+      nature: 'break',
+      countable: false,
+      status: 'active',
+      order: 3
     }
   ],
   dayPlans: [
@@ -257,4 +266,64 @@ test('computeReviewMetrics scopes hours counts and gaps to the selected user', (
   assert.equal(aggregateMetrics.totalActualHours, 4);
   assert.deepEqual(aggregateMetrics.natureHours, { core: 1, admin: 3, investment: 0 });
   assert.equal(aggregateMetrics.goalRows[0].actualCount, 11);
+});
+
+test('break actuals appear in timeline text but are excluded from review and category summaries', () => {
+  const breakState = {
+    ...state,
+    projects: [...state.projects, { id: 'break-project', name: 'Breaks', order: 3, status: 'active' }],
+    dayActuals: [
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 12,
+        taskId: 'break',
+        items: [{ taskId: 'break', note: '', minutes: 45 }]
+      }
+    ]
+  };
+
+  const timelineText = formatDailyScheduleText(breakState, 'dayActuals', 'ishida', '2026-08-05', 12, 13);
+  const categoryText = formatDailyCategorySummaryText(breakState, 'dayActuals', 'ishida', '2026-08-05');
+  const metrics = computeReviewMetrics(breakState, '2026-08-03', { userId: 'ishida' });
+
+  assert.ok(timelineText.includes('Break'));
+  assert.equal(categoryText, '本日の入力はありません');
+  assert.equal(metrics.totalActualHours, 0);
+  assert.deepEqual(metrics.natureHours, { core: 0, admin: 0, investment: 0 });
+});
+
+test('break quick add is capped at sixty minutes per day', () => {
+  const breakState = {
+    ...state,
+    tasks: [
+      ...state.tasks,
+      {
+        id: 'break',
+        projectId: 'break-project',
+        name: 'Break',
+        nature: 'break',
+        countable: false,
+        status: 'active',
+        order: 3
+      }
+    ],
+    dayActuals: [
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 12,
+        taskId: 'break',
+        items: [{ taskId: 'break', note: '', minutes: 45 }]
+      }
+    ]
+  };
+
+  const next = addActualMinutes(breakState, 'ishida', '2026-08-05', 13, 'break', 30);
+  const totalBreakMinutes = next.dayActuals
+    .flatMap((entry) => entry.items ?? [])
+    .filter((item) => item.taskId === 'break')
+    .reduce((sum, item) => sum + item.minutes, 0);
+
+  assert.equal(totalBreakMinutes, 60);
 });

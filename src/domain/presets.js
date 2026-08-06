@@ -1,7 +1,8 @@
 export const TASK_NATURES = [
   { id: 'core', label: 'コア業務' },
   { id: 'admin', label: '雑務' },
-  { id: 'investment', label: '投資' }
+  { id: 'investment', label: '投資' },
+  { id: 'break', label: '休憩' }
 ];
 
 export const DEFAULT_PROJECTS = [
@@ -10,7 +11,8 @@ export const DEFAULT_PROJECTS = [
   { id: 'telecom-sales', name: '電気通信営業', order: 3, status: 'active' },
   { id: 'internal-hiring', name: '自社採用', order: 4, status: 'active' },
   { id: 'routine-admin', name: '共通ルーティン・雑務', order: 5, status: 'active' },
-  { id: 'improvement-learning', name: '改善・自己研鑽', order: 6, status: 'active' }
+  { id: 'improvement-learning', name: '改善・自己研鑽', order: 6, status: 'active' },
+  { id: 'break-control', name: '休憩・控除', order: 7, status: 'active' }
 ];
 
 const taskGroups = [
@@ -19,18 +21,20 @@ const taskGroups = [
   ['telecom-sales', 'core', true, ['テレアポ', '商談/訪問', '提案書作成', '開通フォロー']],
   ['internal-hiring', 'core', true, ['スカウト作成/送信', '求人/媒体管理', '面接', '日程調整']],
   ['routine-admin', 'admin', false, ['予定作成/日報', 'メール/チャット', '社内会議', '事務処理']],
-  ['improvement-learning', 'investment', true, ['テンプレ作成', 'フロー改善/自動化', 'リサーチ/勉強']]
+  ['improvement-learning', 'investment', true, ['テンプレ作成', 'フロー改善/自動化', 'リサーチ/勉強']],
+  ['break-control', 'break', false, ['休憩']]
 ];
 
 export const DEFAULT_TASKS = taskGroups.flatMap(([projectId, nature, countable, names], groupIndex) =>
   names.map((name, taskIndex) => ({
-    id: `${projectId}-${taskIndex + 1}`,
+    id: projectId === 'break-control' ? 'break-rest' : `${projectId}-${taskIndex + 1}`,
     projectId,
     name,
     nature,
     countable,
     status: 'active',
-    order: groupIndex * 100 + taskIndex + 1
+    order: groupIndex * 100 + taskIndex + 1,
+    description: ''
   }))
 );
 

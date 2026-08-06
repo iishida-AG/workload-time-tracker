@@ -70,17 +70,31 @@ export function makeActualEntry(base, items) {
   };
 }
 
-function firstActualTaskId(entry) {
-  return getActualItems(entry)[0]?.taskId;
-}
-
-function totalMinutesForActual(entry) {
-  return getActualItems(entry).reduce((sum, item) => sum + item.minutes, 0);
-}
-
 function actualMinutesForTask(entry, taskId) {
   return getActualItems(entry)
     .filter((item) => item.taskId === taskId)
+    .reduce((sum, item) => sum + item.minutes, 0);
+}
+
+function isReviewTask(task) {
+  return task?.nature !== 'break';
+}
+
+function reviewMinutesForActual(entry, tasks) {
+  return getActualItems(entry)
+    .filter((item) => isReviewTask(tasks.get(item.taskId)))
+    .reduce((sum, item) => sum + item.minutes, 0);
+}
+
+function firstReviewTaskId(entry, tasks) {
+  return getActualItems(entry).find((item) => isReviewTask(tasks.get(item.taskId)))?.taskId;
+}
+
+function breakMinutesForDay(entries, tasks, userId, date) {
+  return entries
+    .filter((entry) => (entry.userId ?? 'ishida') === userId && entry.date === date)
+    .flatMap((entry) => getActualItems(entry))
+    .filter((item) => tasks.get(item.taskId)?.nature === 'break')
     .reduce((sum, item) => sum + item.minutes, 0);
 }
 
@@ -159,7 +173,12 @@ export function copyPlanHourToActual(state, userId, date, hour) {
 
 export function addActualMinutes(state, userId, date, hour, taskId, minutes, note = '') {
   if (!taskId) return state;
-  const cleanMinuteValue = cleanMinutes(minutes, 0);
+  const tasks = taskById(state.tasks ?? []);
+  const isBreak = tasks.get(taskId)?.nature === 'break';
+  const remainingBreakMinutes = isBreak
+    ? Math.max(0, 60 - breakMinutesForDay(state.dayActuals ?? [], tasks, userId, date))
+    : Infinity;
+  const cleanMinuteValue = Math.min(cleanMinutes(minutes, 0), remainingBreakMinutes);
   if (cleanMinuteValue <= 0) return state;
 
   let found = false;
@@ -300,6 +319,7 @@ export function formatDailyCategorySummaryText(state, collectionName, userId, da
           : [];
     for (const item of items) {
       const task = tasks.get(item.taskId);
+      if (!isReviewTask(task)) continue;
       const project = projects.get(task?.projectId);
       const projectId = project?.id ?? 'unknown';
       if (!grouped.has(projectId)) {
@@ -370,7 +390,7 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   const tasks = taskById(state.tasks ?? []);
   const actuals = (state.dayActuals ?? []).filter((entry) => withinDates(entry, dates) && matchesUser(entry, userId));
   const plans = (state.dayPlans ?? []).filter((entry) => withinDates(entry, dates) && matchesUser(entry, userId));
-  const actualMinutes = actuals.reduce((sum, entry) => sum + totalMinutesForActual(entry), 0);
+  const actualMinutes = actuals.reduce((sum, entry) => sum + reviewMinutesForActual(entry, tasks), 0);
   const totalActualHours = round(actualMinutes / 60, 2);
   const capacityHours = periodMode === 'month' ? (dates.size / 7) * WEEK_CAPACITY_HOURS : WEEK_CAPACITY_HOURS;
   const natureHours = zeroNatureHours();
@@ -416,16 +436,20 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   });
 
   const planMap = new Map(plans.map((entry) => [entryKey(entry), entry]));
-  const actualMap = new Map(actuals.map((entry) => [entryKey(entry), entry]));
+  const actualMap = new Map(
+    actuals
+      .filter((entry) => firstReviewTaskId(entry, tasks))
+      .map((entry) => [entryKey(entry), entry])
+  );
   const topGaps = [...planMap.entries()]
-    .filter(([key, plan]) => actualMap.has(key) && firstActualTaskId(actualMap.get(key)) !== plan.taskId)
+    .filter(([key, plan]) => actualMap.has(key) && firstReviewTaskId(actualMap.get(key), tasks) !== plan.taskId)
     .slice(0, 3)
     .map(([, plan]) => {
       const actual = actualMap.get(entryKey(plan));
       return {
         hour: plan.hour,
         plannedTaskName: tasks.get(plan.taskId)?.name ?? '未設定',
-        actualTaskName: tasks.get(firstActualTaskId(actual))?.name ?? '未設定'
+        actualTaskName: tasks.get(firstReviewTaskId(actual, tasks))?.name ?? '未設定'
       };
     });
 
