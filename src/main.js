@@ -16,7 +16,7 @@ import {
   updateActualItem
 } from './domain/metrics.js';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260806-report';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260806-daily-report-v2';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js';
@@ -26,6 +26,7 @@ import {
   deleteProject,
   deleteTask,
   getTimelineSetting,
+  hideProject,
   hideTask,
   moveProjectOrder,
   moveTaskOrder,
@@ -1020,7 +1021,7 @@ function renderMasterData() {
               .filter((task) => task.projectId === project.id && task.status !== 'deleted')
               .sort((a, b) => a.order - b.order);
             return `
-              <div class="project-block">
+              <div class="project-block ${project.status === 'hidden' ? 'muted' : ''}">
                 <div class="project-title-row">
                   <input class="project-name-input" value="${escapeHtml(project.name)}" data-project-field="name" data-project-id="${escapeHtml(project.id)}" />
                   <div class="project-title-actions">
@@ -1030,6 +1031,10 @@ function renderMasterData() {
                     </button>
                     <button class="icon-button" data-action="move-project" data-project-id="${escapeHtml(project.id)}" data-direction="down" ${projectIndex === projects.length - 1 ? 'disabled' : ''} aria-label="${escapeHtml(project.name)}を下へ移動">
                       ${icon('chevronDown')}
+                    </button>
+                    <button class="ghost-button" data-action="${project.status === 'hidden' ? 'show-project' : 'hide-project'}" data-project-id="${escapeHtml(project.id)}">
+                      ${icon(project.status === 'hidden' ? 'eye' : 'eyeOff')}
+                      <span>${project.status === 'hidden' ? '再表示' : '非表示'}</span>
                     </button>
                     <button class="danger-button" data-action="delete-project" data-project-id="${escapeHtml(project.id)}" data-project-name="${escapeHtml(project.name)}">
                       ${icon('trash')}
@@ -1339,6 +1344,12 @@ function handleClick(event) {
     if (window.confirm(`${button.dataset.projectName}と配下の小分類をマスタから削除しますか？`)) {
       commit(deleteProject(state, button.dataset.projectId));
     }
+  }
+  if (action === 'hide-project') {
+    commit(hideProject(state, button.dataset.projectId));
+  }
+  if (action === 'show-project') {
+    commit(updateProject(state, button.dataset.projectId, { status: 'active' }));
   }
   if (action === 'review-mode') {
     reviewMode = button.dataset.mode;

@@ -67,60 +67,71 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
   assert.equal(view.countableTasks.length, 1);
 });
 
-test('createDashboardViewModel separates selected user and partner copy text', () => {
+test('createDashboardViewModel outputs Ishida daily report with existing actual timeline format', () => {
   const state = {
     ...baseState(),
-    timelineSettings: [
-      { userId: 'ishida', date: '2026-08-05', startHour: 10, endHour: 12 },
-      { userId: 'tanoue', date: '2026-08-05', startHour: 11, endHour: 13 }
+    tasks: [
+      ...baseState().tasks,
+      {
+        id: 't2',
+        projectId: 'p1',
+        name: 'Meeting',
+        nature: 'admin',
+        countable: false,
+        status: 'active',
+        order: 2
+      }
     ],
-    dayPlans: [
-      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'for A' },
-      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'shared' }
-    ],
+    timelineSettings: [{ userId: 'ishida', date: '2026-08-05', startHour: 10, endHour: 13 }],
     dayActuals: [
-      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'sent' },
-      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'reviewed' }
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 10,
+        taskId: 't1',
+        items: [
+          { taskId: 't1', note: '', minutes: 60 },
+          { taskId: 't2', note: 'memo', minutes: 15 }
+        ]
+      }
     ]
   };
 
   const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
 
-  assert.equal(view.userId, 'ishida');
-  assert.equal(view.partnerUserId, 'tanoue');
-  assert.deepEqual(view.timelineSetting, { startHour: 10, endHour: 12 });
-  assert.deepEqual(view.partnerTimelineSetting, { startHour: 11, endHour: 13 });
-  assert.ok(view.planCopyText.includes('10:00-11:00 Proposal'));
-  assert.ok(view.actualCopyText.includes('今日の目標(達成数値)'));
-  assert.ok(view.actualCopyText.includes('10時～11時　Proposal、sent'));
-  assert.ok(view.partnerPlanCopyText.includes('11:00-12:00 Proposal'));
-  assert.ok(view.partnerActualCopyText.includes('■今日の業務内容'));
-  assert.ok(view.partnerActualCopyText.includes('11時～12時　Proposal、reviewed'));
+  assert.ok(view.actualCopyText.startsWith('お疲れ様です。'));
+  assert.ok(view.actualCopyText.includes('今日の目標(達成数値)\n\n'));
+  assert.ok(view.actualCopyText.includes('10:00-11:00 10:00-11:00 Proposal (60分)、11:00-11:15 Meeting (15分)：「memo」'));
+  assert.ok(view.actualCopyText.includes('11:00-12:00 未入力'));
+  assert.ok(view.actualCopyText.includes('12:00-13:00 未入力'));
+  assert.ok(view.actualCopyText.includes('良かったこと\n\n課題/解決策\n\n明日の目標'));
 });
 
-test('createDashboardViewModel builds full daily report text per user template', () => {
+test('createDashboardViewModel outputs Tanoue daily report with business section filled', () => {
   const state = {
     ...baseState(),
-    timelineSettings: [
-      { userId: 'ishida', date: '2026-08-05', startHour: 10, endHour: 12 },
-      { userId: 'tanoue', date: '2026-08-05', startHour: 10, endHour: 12 }
-    ],
-    dayActuals: [
-      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'sent' },
-      { userId: 'tanoue', date: '2026-08-05', hour: 10, taskId: 't1', note: 'reviewed' }
-    ]
+    timelineSettings: [{ userId: 'tanoue', date: '2026-08-05', startHour: 10, endHour: 12 }],
+    dayActuals: [{ userId: 'tanoue', date: '2026-08-05', hour: 10, taskId: 't1', note: 'reviewed' }]
   };
 
-  const ishidaView = createDashboardViewModel(state, '2026-08-05', 'ishida');
-  const tanoueView = createDashboardViewModel(state, '2026-08-05', 'tanoue');
+  const view = createDashboardViewModel(state, '2026-08-05', 'tanoue');
 
-  assert.ok(ishidaView.dailyReportText.startsWith('お疲れ様です。'));
-  assert.ok(ishidaView.dailyReportText.includes('今日の目標(達成数値)\n\n'));
-  assert.ok(ishidaView.dailyReportText.includes('10時～11時　Proposal、sent'));
-  assert.ok(ishidaView.dailyReportText.includes('良かったこと\n\n'));
-  assert.ok(tanoueView.dailyReportText.includes('■今日の業務内容'));
-  assert.ok(tanoueView.dailyReportText.includes('10時～11時　Proposal、reviewed'));
-  assert.ok(tanoueView.dailyReportText.includes('■今日の定量目標達成率\n\n'));
+  assert.ok(view.actualCopyText.includes('下記、本日の日報でございます。'));
+  assert.ok(view.actualCopyText.includes('■今日の業務内容\n10:00-11:00 10:00-11:00 Proposal (60分)：「reviewed」'));
+  assert.ok(view.actualCopyText.includes('11:00-12:00 未入力'));
+  assert.ok(view.actualCopyText.includes('■今日の定量目標達成率\n\n■明日の定量目標'));
+});
+
+test('createDashboardViewModel excludes tasks from hidden projects from active shortcuts', () => {
+  const state = {
+    ...baseState(),
+    projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'hidden' }]
+  };
+
+  const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
+
+  assert.equal(view.activeTasks.length, 0);
+  assert.equal(view.countableTasks.length, 0);
 });
 
 test('user URLs select Ishida or Tanoue and ignore invalid values', () => {

@@ -275,6 +275,10 @@ export function deleteTask(state, taskId) {
   return updateTask(state, taskId, { status: 'deleted' });
 }
 
+export function hideProject(state, projectId) {
+  return updateProject(state, projectId, { status: 'hidden' });
+}
+
 export function deleteProject(state, projectId) {
   return {
     ...state,

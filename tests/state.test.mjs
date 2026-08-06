@@ -5,6 +5,7 @@ import {
   deleteProject,
   deleteTask,
   getTimelineSetting,
+  hideProject,
   hideTask,
   normalizeState,
   moveProjectOrder,
@@ -101,6 +102,14 @@ test('deleteProject marks a project and its tasks deleted', () => {
 
   assert.equal(next.projects.find((project) => project.id === 'ses-sales').status, 'deleted');
   assert.ok(next.tasks.filter((task) => task.projectId === 'ses-sales').every((task) => task.status === 'deleted'));
+});
+
+test('hideProject marks only the project hidden and keeps tasks intact', () => {
+  const state = createAppState('2026-08-03');
+  const next = hideProject(state, 'ses-sales');
+
+  assert.equal(next.projects.find((project) => project.id === 'ses-sales').status, 'hidden');
+  assert.ok(next.tasks.filter((task) => task.projectId === 'ses-sales').every((task) => task.status === 'active'));
 });
 
 test('updateTask edits the free text task description', () => {
