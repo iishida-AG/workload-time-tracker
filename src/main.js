@@ -1118,6 +1118,9 @@ function handleChange(event) {
 function handleInput(event) {
   const target = event.target;
   if (target.dataset.field === 'timeline-note') {
+    if (event.isComposing) {
+      return;
+    }
     commit(
       setTimelineNote(
         state,
@@ -1154,6 +1157,22 @@ function handleInput(event) {
   commit(upsertReview(state, weekStart(), { [target.dataset.reviewField]: target.value }), {
     render: false
   });
+}
+
+function handleCompositionEnd(event) {
+  const target = event.target;
+  if (target.dataset.field !== 'timeline-note') return;
+  commit(
+    setTimelineNote(
+      state,
+      target.dataset.collection,
+      activeUserId,
+      currentDate,
+      Number(target.dataset.hour),
+      target.value
+    ),
+    { render: false }
+  );
 }
 
 function handleSubmit(event) {
@@ -1238,6 +1257,7 @@ function boot() {
   document.addEventListener('keydown', handleKeyDown);
   root.addEventListener('change', handleChange);
   root.addEventListener('input', handleInput);
+  root.addEventListener('compositionend', handleCompositionEnd);
   root.addEventListener('submit', handleSubmit);
   root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
   startAuthFlow();
