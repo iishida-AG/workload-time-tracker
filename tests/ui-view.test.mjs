@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createDashboardViewModel } from '../src/ui/view-model.js';
-import { buildUserUrl, countGoalTone, getCopyTextKey, getUserIdFromUrl } from '../src/main.js';
+import { buildUserUrl, countGoalTone, getCopyTextKey, getUserIdFromUrl, nextSelectedTaskId } from '../src/main.js';
 
 function test(name, fn) {
   try {
@@ -125,4 +125,9 @@ test('countGoalTone marks achieved counts blue and missed counts red', () => {
 
 test('getCopyTextKey creates stable keys for one-touch daily text copy buttons', () => {
   assert.equal(getCopyTextKey('予定'), 'daily-copy-予定');
+});
+
+test('nextSelectedTaskId clears the selection when the selected shortcut is pressed again', () => {
+  assert.equal(nextSelectedTaskId('proposal', 'proposal'), '');
+  assert.equal(nextSelectedTaskId('', 'proposal'), 'proposal');
 });

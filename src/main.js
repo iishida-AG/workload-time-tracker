@@ -87,6 +87,10 @@ export function getCopyTextKey(label) {
   return `daily-copy-${label}`;
 }
 
+export function nextSelectedTaskId(currentTaskId, clickedTaskId) {
+  return currentTaskId === clickedTaskId ? '' : clickedTaskId;
+}
+
 function currentPageUrl() {
   return typeof window === 'undefined' ? 'https://example.github.io/workload/' : window.location.href;
 }
@@ -243,6 +247,7 @@ function subscribeSharedState() {
 }
 
 function ensureSelectedTask() {
+  if (selectedTaskId === '') return;
   if (selectedTaskId && taskById(selectedTaskId)?.status === 'active') return;
   selectedTaskId = sortedTasks()[0]?.id ?? '';
 }
@@ -619,8 +624,37 @@ function renderTimelineColumn(title, collectionName, view) {
             focusedCell?.userId === view.userId &&
             focusedCell?.date === currentDate &&
             focusedCell?.hour === hour;
+          if (collectionName === 'dayPlans') {
+            return `
+              <div class="timeline-entry plan-entry">
+                <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'} title="予定通り完了" aria-label="予定通り完了">
+                  ${icon('check')}
+                </button>
+                <button
+                  class="plan-inline-select ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
+                  data-action="set-timeline"
+                  data-timeline-cell="true"
+                  data-collection="${collectionName}"
+                  data-hour="${hour}"
+                >
+                  <span class="plan-inline-time">${hourRangeLabel(hour)}</span>
+                  <span class="plan-inline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
+                </button>
+                <input
+                  class="timeline-note plan-inline-note"
+                  type="text"
+                  value="${escapeHtml(entry?.note ?? '')}"
+                  data-field="timeline-note"
+                  data-collection="${collectionName}"
+                  data-hour="${hour}"
+                  aria-label="自由記入"
+                  ${entry ? '' : 'disabled'}
+                />
+              </div>
+            `;
+          }
           return `
-            <div class="timeline-entry">
+            <div class="timeline-entry actual-entry">
               <button
                 class="timeline-cell ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
                 data-action="set-timeline"
@@ -629,39 +663,8 @@ function renderTimelineColumn(title, collectionName, view) {
                 data-hour="${hour}"
               >
                 <span class="timeline-hour">${hourRangeLabel(hour)}</span>
-                <span class="timeline-task">${
-                  collectionName === 'dayActuals'
-                    ? items.length > 0
-                      ? `${items.length}件 / ${items.reduce((sum, item) => sum + item.minutes, 0)}分`
-                      : '未入力'
-                    : task
-                      ? escapeHtml(task.name)
-                      : '未入力'
-                }</span>
               </button>
-              ${
-                collectionName === 'dayPlans'
-                  ? `
-                    <div class="plan-inline-row">
-                      <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'} title="予定通り完了">
-                        ${icon('check')}<span>予定通り</span>
-                      </button>
-                      <span class="plan-inline-time">${hourRangeLabel(hour)}</span>
-                      <span class="plan-inline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
-                      <input
-                        class="timeline-note plan-inline-note"
-                        type="text"
-                        value="${escapeHtml(entry?.note ?? '')}"
-                        data-field="timeline-note"
-                        data-collection="${collectionName}"
-                        data-hour="${hour}"
-                        aria-label="自由記入"
-                        ${entry ? '' : 'disabled'}
-                      />
-                    </div>
-                  `
-                  : renderActualItemRows(entry, hour)
-              }
+              ${renderActualItemRows(entry, hour)}
             </div>
           `;
         })
@@ -1267,7 +1270,7 @@ function handleClick(event) {
     authController.logout().catch((error) => console.error('Failed to logout', error));
   }
   if (action === 'select-task') {
-    selectedTaskId = selectedTaskId === button.dataset.taskId ? '' : button.dataset.taskId;
+    selectedTaskId = nextSelectedTaskId(selectedTaskId, button.dataset.taskId);
     render();
   }
   if (action === 'set-timeline') {

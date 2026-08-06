@@ -511,17 +511,43 @@ main {
 }
 
 .planned-done-button {
-  min-height: 26px;
-  padding: 0 8px;
+  width: 30px;
+  min-height: 28px;
+  padding: 0;
   white-space: nowrap;
 }
 
-.plan-inline-row {
+.planned-done-button span {
+  display: none;
+}
+
+.plan-entry {
   display: grid;
-  grid-template-columns: auto 96px minmax(90px, 1fr) minmax(120px, 1fr);
+  grid-template-columns: 30px minmax(210px, 1fr) minmax(140px, 0.8fr);
   gap: 6px;
   align-items: center;
   min-width: 0;
+}
+
+.plan-inline-select {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid #dfe6ef;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d2433;
+  text-align: left;
+}
+
+.plan-inline-select.focused {
+  border-color: #2364d2;
+  box-shadow: 0 0 0 3px rgba(35, 100, 210, 0.14);
 }
 
 .plan-inline-time,
@@ -538,6 +564,18 @@ main {
 
 .plan-inline-note {
   min-height: 28px;
+}
+
+.actual-entry {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  min-width: 0;
+}
+
+.actual-entry .timeline-cell {
+  grid-template-columns: 1fr;
 }
 
 .actual-item-list {
@@ -1353,7 +1391,9 @@ main {
   .kpi-strip,
   .timeline-grid,
   .timeline-entry,
-  .plan-inline-row,
+  .plan-entry,
+  .actual-entry,
+  .plan-inline-select,
   .actual-item-row,
   .shortcut-task-line,
   .copy-grid,
