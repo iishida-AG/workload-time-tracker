@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createDashboardViewModel } from '../src/ui/view-model.js';
-import { buildUserUrl, countGoalTone, getUserIdFromUrl } from '../src/main.js';
+import { buildUserUrl, countGoalTone, getCopyTextKey, getUserIdFromUrl } from '../src/main.js';
 
 function test(name, fn) {
   try {
@@ -132,4 +132,8 @@ test('countGoalTone marks achieved counts blue and missed counts red', () => {
   assert.equal(countGoalTone(10, 12), 'achieved');
   assert.equal(countGoalTone(10, 9), 'missed');
   assert.equal(countGoalTone(null, 9), '');
+});
+
+test('getCopyTextKey creates stable keys for one-touch daily text copy buttons', () => {
+  assert.equal(getCopyTextKey('予定', '10:00-11:00 未入力：「」'), 'daily-copy-予定');
 });

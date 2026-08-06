@@ -437,7 +437,7 @@ main {
 .timeline-entry {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.8fr);
-  gap: 8px;
+  gap: 6px;
   align-items: stretch;
 }
 
@@ -448,8 +448,8 @@ main {
     "hour task";
   align-items: center;
   width: 100%;
-  min-height: 30px;
-  padding: 5px 10px;
+  min-height: 26px;
+  padding: 2px 8px;
   border: 1px solid #dfe6ef;
   border-left-width: 5px;
   border-radius: 8px;
@@ -486,7 +486,7 @@ main {
 .timeline-note-wrap,
 .copy-block {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -501,8 +501,8 @@ main {
 }
 
 .timeline-note {
-  min-height: 64px;
-  padding: 10px;
+  min-height: 26px;
+  padding: 2px 8px;
 }
 
 .timeline-note:disabled {
@@ -520,6 +520,18 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.copy-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compact-copy-button {
+  min-height: 28px;
+  padding: 0 8px;
 }
 
 .copy-grid {

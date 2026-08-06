@@ -75,6 +75,10 @@ export function countGoalTone(targetCount, actualCount) {
   return actualCount >= targetCount ? 'achieved' : 'missed';
 }
 
+export function getCopyTextKey(label) {
+  return `daily-copy-${label}`;
+}
+
 function currentPageUrl() {
   return typeof window === 'undefined' ? 'https://example.github.io/workload/' : window.location.href;
 }
@@ -380,9 +384,16 @@ function hourRangeLabel(hour) {
 }
 
 function renderCopyTextarea(label, text) {
+  const copyKey = getCopyTextKey(label);
   return `
     <label class="copy-block">
-      <span>${escapeHtml(label)}</span>
+      <span class="copy-block-header">
+        <span>${escapeHtml(label)}</span>
+        <button class="ghost-button compact-copy-button" type="button" data-action="copy-daily-text" data-copy-key="${escapeHtml(copyKey)}">
+          ${icon('copy')}
+          <span>コピー</span>
+        </button>
+      </span>
       <textarea class="copy-text" readonly>${escapeHtml(text)}</textarea>
     </label>
   `;
@@ -974,6 +985,12 @@ function handleClick(event) {
     const url = buildUserUrl(currentPageUrl(), button.dataset.userId);
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url).catch((error) => console.error('Failed to copy user URL', error));
+    }
+  }
+  if (action === 'copy-daily-text') {
+    const text = button.closest('.copy-block')?.querySelector('.copy-text')?.value ?? '';
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch((error) => console.error('Failed to copy daily text', error));
     }
   }
   if (action === 'logout') {
