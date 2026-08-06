@@ -16,7 +16,7 @@ import {
   updateActualItem
 } from './domain/metrics.js';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260806-report';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js';
