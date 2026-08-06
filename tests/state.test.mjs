@@ -8,6 +8,7 @@ import {
   hideTask,
   normalizeState,
   moveProjectOrder,
+  moveTaskOrder,
   updateTask,
   upsertMonthlyProjectGoal,
   upsertReview,
@@ -179,6 +180,21 @@ test('incrementDailyCount stores counts per user', () => {
     taskId: 'ses-sales-1',
     count: 1
   });
+});
+
+test('moveTaskOrder swaps task order inside the same project', () => {
+  const state = createAppState('2026-08-03');
+  const before = state.tasks
+    .filter((task) => task.projectId === 'ses-sales')
+    .sort((a, b) => a.order - b.order)
+    .map((task) => task.id);
+  const next = moveTaskOrder(state, before[1], 'up');
+  const after = next.tasks
+    .filter((task) => task.projectId === 'ses-sales')
+    .sort((a, b) => a.order - b.order)
+    .map((task) => task.id);
+
+  assert.deepEqual(after.slice(0, 2), [before[1], before[0]]);
 });
 
 test('upsertReview stores discussion items as newline bullet text', () => {

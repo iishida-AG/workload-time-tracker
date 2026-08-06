@@ -218,6 +218,37 @@ export function updateTask(state, taskId, patch) {
   };
 }
 
+export function moveTaskOrder(state, taskId, direction) {
+  const currentTask = state.tasks.find((task) => task.id === taskId);
+  if (!currentTask) return state;
+
+  const siblingTasks = state.tasks
+    .filter((task) => task.projectId === currentTask.projectId && task.status !== 'deleted')
+    .sort((a, b) => a.order - b.order);
+  const index = siblingTasks.findIndex((task) => task.id === taskId);
+  const neighborIndex = direction === 'up' ? index - 1 : index + 1;
+
+  if (index < 0 || neighborIndex < 0 || neighborIndex >= siblingTasks.length) {
+    return state;
+  }
+
+  const current = siblingTasks[index];
+  const neighbor = siblingTasks[neighborIndex];
+
+  return {
+    ...state,
+    tasks: state.tasks.map((task) => {
+      if (task.id === current.id) {
+        return { ...task, order: neighbor.order };
+      }
+      if (task.id === neighbor.id) {
+        return { ...task, order: current.order };
+      }
+      return task;
+    })
+  };
+}
+
 export function hideTask(state, taskId) {
   return updateTask(state, taskId, { status: 'hidden' });
 }

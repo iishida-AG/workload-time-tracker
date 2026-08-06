@@ -22,6 +22,7 @@ import {
   getTimelineSetting,
   hideTask,
   moveProjectOrder,
+  moveTaskOrder,
   updateProject,
   updateTask,
   upsertMonthlyProjectGoal,
@@ -537,6 +538,13 @@ function renderTimelineBoard(view) {
 }
 
 function renderShortcutPalette(view) {
+  const groupedTasks = activeProjects()
+    .map((project) => ({
+      project,
+      tasks: view.activeTasks.filter((task) => task.projectId === project.id)
+    }))
+    .filter((group) => group.tasks.length > 0);
+
   return `
     <aside class="panel shortcut-panel">
       <div class="panel-heading compact">
@@ -549,14 +557,25 @@ function renderShortcutPalette(view) {
         <button class="shortcut-card ${selectedTaskId === '' ? 'selected' : ''}" data-action="select-task" data-task-id="">
           <span class="shortcut-name">消去</span>
         </button>
-        ${view.activeTasks
-          .map((task) => {
-            return `
-              <button class="shortcut-card nature-${task.nature} ${selectedTaskId === task.id ? 'selected' : ''}" data-action="select-task" data-task-id="${escapeHtml(task.id)}" title="${escapeHtml(task.description || '説明は未入力です')}">
-                <span class="shortcut-name">${escapeHtml(task.name)}</span>
-              </button>
-            `;
-          })
+        ${groupedTasks
+          .map(
+            ({ project, tasks }) => `
+              <div class="shortcut-group">
+                <h3>${escapeHtml(project.name)}</h3>
+                <div class="shortcut-group-grid">
+                  ${tasks
+                    .map(
+                      (task) => `
+                        <button class="shortcut-card nature-${task.nature} ${selectedTaskId === task.id ? 'selected' : ''}" data-action="select-task" data-task-id="${escapeHtml(task.id)}" title="${escapeHtml(task.description || '説明は未入力です')}">
+                          <span class="shortcut-name">${escapeHtml(task.name)}</span>
+                        </button>
+                      `
+                    )
+                    .join('')}
+                </div>
+              </div>
+            `
+          )
           .join('')}
       </div>
       ${renderTaskForm('quick-task-form', 'ワンタップ追加', true)}
@@ -759,7 +778,7 @@ function renderMasterData() {
         ${state.projects
           .filter((project) => project.status !== 'deleted')
           .sort((a, b) => a.order - b.order)
-          .map((project) => {
+          .map((project, projectIndex, projects) => {
             const tasks = state.tasks
               .filter((task) => task.projectId === project.id && task.status !== 'deleted')
               .sort((a, b) => a.order - b.order);
@@ -769,6 +788,12 @@ function renderMasterData() {
                   <input class="project-name-input" value="${escapeHtml(project.name)}" data-project-field="name" data-project-id="${escapeHtml(project.id)}" />
                   <div class="project-title-actions">
                     <span>${tasks.length}件</span>
+                    <button class="icon-button" data-action="move-project" data-project-id="${escapeHtml(project.id)}" data-direction="up" ${projectIndex === 0 ? 'disabled' : ''} aria-label="${escapeHtml(project.name)}を上へ移動">
+                      ${icon('chevronUp')}
+                    </button>
+                    <button class="icon-button" data-action="move-project" data-project-id="${escapeHtml(project.id)}" data-direction="down" ${projectIndex === projects.length - 1 ? 'disabled' : ''} aria-label="${escapeHtml(project.name)}を下へ移動">
+                      ${icon('chevronDown')}
+                    </button>
                     <button class="danger-button" data-action="delete-project" data-project-id="${escapeHtml(project.id)}" data-project-name="${escapeHtml(project.name)}">
                       ${icon('trash')}
                       <span>削除</span>
@@ -778,8 +803,16 @@ function renderMasterData() {
                 <div class="task-table">
                   ${tasks
                     .map(
-                      (task) => `
+                      (task, taskIndex) => `
                         <article class="task-row ${task.status === 'hidden' ? 'muted' : ''}">
+                          <div class="task-order-actions">
+                            <button class="icon-button" data-action="move-task" data-task-id="${escapeHtml(task.id)}" data-direction="up" ${taskIndex === 0 ? 'disabled' : ''} aria-label="${escapeHtml(task.name)}を上へ移動">
+                              ${icon('chevronUp')}
+                            </button>
+                            <button class="icon-button" data-action="move-task" data-task-id="${escapeHtml(task.id)}" data-direction="down" ${taskIndex === tasks.length - 1 ? 'disabled' : ''} aria-label="${escapeHtml(task.name)}を下へ移動">
+                              ${icon('chevronDown')}
+                            </button>
+                          </div>
                           <div class="task-name-cell" title="${escapeHtml(task.description || '説明は未入力です')}">
                             <input value="${escapeHtml(task.name)}" data-task-field="name" data-task-id="${escapeHtml(task.id)}" />
                             <span class="comment-indicator">${icon('message')}</span>
@@ -1025,6 +1058,9 @@ function handleClick(event) {
   }
   if (action === 'move-project') {
     commit(moveProjectOrder(state, button.dataset.projectId, button.dataset.direction));
+  }
+  if (action === 'move-task') {
+    commit(moveTaskOrder(state, button.dataset.taskId, button.dataset.direction));
   }
   if (action === 'hide-task') {
     commit(hideTask(state, button.dataset.taskId));

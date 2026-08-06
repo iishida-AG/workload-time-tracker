@@ -590,6 +590,26 @@ main {
   gap: 8px;
 }
 
+.shortcut-group {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid #e1e7f0;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.shortcut-group h3 {
+  margin: 0;
+  color: #344054;
+  font-size: 13px;
+}
+
+.shortcut-group-grid {
+  display: grid;
+  gap: 6px;
+}
+
 .shortcut-card {
   display: grid;
   width: 100%;
@@ -925,7 +945,7 @@ main {
 
 .task-row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.2fr) minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(120px, 0.8fr) 78px 96px 86px;
+  grid-template-columns: 64px minmax(170px, 1.2fr) minmax(180px, 1.2fr) minmax(140px, 0.9fr) minmax(120px, 0.8fr) 78px 96px 86px;
   gap: 8px;
   align-items: center;
   padding: 10px;
@@ -937,6 +957,11 @@ main {
 .task-row.muted {
   background: #f4f6f9;
   opacity: 0.72;
+}
+
+.task-order-actions {
+  display: inline-flex;
+  gap: 4px;
 }
 
 .task-name-cell {
