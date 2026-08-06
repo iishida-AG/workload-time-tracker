@@ -50,7 +50,7 @@ let authController;
 let authState = { status: 'loading', user: null, error: '' };
 let unsubscribeState = null;
 let unsubscribeAuth = null;
-let suppressNextAdapterRender = false;
+let suppressedAdapterRenderCount = 0;
 
 const validUserIds = new Set(USERS.map((user) => user.id));
 
@@ -188,8 +188,8 @@ function commit(nextState, options = {}) {
   const shouldRender = options.render !== false;
   state = nextState;
   if (adapter) {
-    if (adapter.mode === 'local') {
-      suppressNextAdapterRender = true;
+    if (adapter.mode === 'local' || !shouldRender) {
+      suppressedAdapterRenderCount += 1;
     }
     const result = adapter.save(nextState);
     if (result && typeof result.catch === 'function') {
@@ -214,8 +214,8 @@ function subscribeSharedState() {
   const subscription = adapter.subscribe((nextState) => {
     state = nextState;
     ensureSelectedTask();
-    if (suppressNextAdapterRender) {
-      suppressNextAdapterRender = false;
+    if (suppressedAdapterRenderCount > 0) {
+      suppressedAdapterRenderCount -= 1;
       return;
     }
     render();
@@ -1246,8 +1246,8 @@ function boot() {
   const subscription = adapter.subscribe((nextState) => {
     state = nextState;
     ensureSelectedTask();
-    if (suppressNextAdapterRender) {
-      suppressNextAdapterRender = false;
+    if (suppressedAdapterRenderCount > 0) {
+      suppressedAdapterRenderCount -= 1;
       return;
     }
     render();
