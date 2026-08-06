@@ -1,5 +1,6 @@
 import { getWeekStart } from '../domain/calendar.js';
 import { createInitialState } from '../domain/presets.js';
+import { getActualItems, makeActualEntry } from '../domain/metrics.js';
 
 function nextOrder(items) {
   return items.reduce((max, item) => Math.max(max, item.order ?? 0), 0) + 1;
@@ -57,9 +58,14 @@ export function normalizeState(state, defaultUserId = 'ishida') {
       ...entry
     })),
     dayActuals: (state.dayActuals ?? []).map((entry) => ({
-      userId: entry.userId ?? defaultUserId,
-      note: entry.note ?? '',
-      ...entry
+      ...makeActualEntry(
+        {
+          ...entry,
+          userId: entry.userId ?? defaultUserId,
+          note: entry.note ?? ''
+        },
+        getActualItems(entry)
+      )
     })),
     dailyCounts: (state.dailyCounts ?? []).map((row) => ({
       userId: row.userId ?? defaultUserId,

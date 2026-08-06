@@ -510,6 +510,55 @@ main {
   color: #98a2b3;
 }
 
+.planned-done-button {
+  min-height: 26px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+.actual-item-list {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.actual-item-row {
+  display: grid;
+  grid-template-columns: minmax(86px, 1fr) 54px 18px minmax(90px, 1fr) 32px;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.actual-item-task {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.actual-minutes-input,
+.actual-note-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid #d7deea;
+  border-radius: 6px;
+}
+
+.actual-minute-label,
+.actual-item-empty {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mini-icon-button {
+  width: 32px;
+  min-height: 28px;
+}
+
 .copy-section {
   display: grid;
   gap: 8px;
@@ -632,6 +681,30 @@ main {
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: 800;
+}
+
+.shortcut-task-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.shortcut-minute-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.shortcut-minute-actions button {
+  min-height: 30px;
+  padding: 0 6px;
+  border: 1px solid #d7deea;
+  border-radius: 6px;
+  background: #f8fafc;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .counter-grid {
@@ -861,6 +934,13 @@ main {
   display: block;
   min-width: 0;
   overflow-wrap: anywhere;
+  font-weight: 800;
+}
+
+.project-count-total {
+  margin: 6px 0 0;
+  color: #344054;
+  font-size: 12px;
   font-weight: 800;
 }
 

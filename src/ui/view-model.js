@@ -1,6 +1,7 @@
 import { getWeekStart } from '../domain/calendar.js';
 import {
   computeReviewMetrics,
+  formatDailyCategorySummaryText,
   formatDailyScheduleText,
   getImprovementPromiseForWeek
 } from '../domain/metrics.js';
@@ -51,6 +52,8 @@ export function createDashboardViewModel(state, date, userId = 'ishida') {
       timelineSetting.startHour,
       timelineSetting.endHour
     ),
+    planCategoryCopyText: formatDailyCategorySummaryText(state, 'dayPlans', userId, date),
+    actualCategoryCopyText: formatDailyCategorySummaryText(state, 'dayActuals', userId, date),
     partnerPlanCopyText: formatDailyScheduleText(
       state,
       'dayPlans',
@@ -59,6 +62,8 @@ export function createDashboardViewModel(state, date, userId = 'ishida') {
       partnerTimelineSetting.startHour,
       partnerTimelineSetting.endHour
     ),
+    partnerPlanCategoryCopyText: formatDailyCategorySummaryText(state, 'dayPlans', partnerUserId, date),
+    partnerActualCategoryCopyText: formatDailyCategorySummaryText(state, 'dayActuals', partnerUserId, date),
     partnerActualCopyText: formatDailyScheduleText(
       state,
       'dayActuals',

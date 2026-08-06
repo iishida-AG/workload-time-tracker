@@ -5,9 +5,14 @@ import {
   computeProjectCountSummaries,
   computeReviewMetrics,
   copyPlanToActuals,
+  copyPlanHourToActual,
+  addActualMinutes,
+  getActualItems,
   incrementDailyCount,
+  removeActualItem,
   setTimelineEntry,
-  setTimelineNote
+  setTimelineNote,
+  updateActualItem
 } from './domain/metrics.js';
 import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js';
@@ -44,6 +49,7 @@ let currentDate;
 let activeTab = 'dashboard';
 let selectedTaskId = '';
 let reviewMode = 'week';
+let copyFormat = 'timeline';
 let activeUserId = 'ishida';
 let focusedCell = null;
 let adapter;
@@ -262,6 +268,16 @@ function entryFor(collectionName, hour, userId = activeUserId) {
   );
 }
 
+function activeActualHour(view) {
+  if (focusedCell?.collectionName === 'dayActuals' && focusedCell.userId === activeUserId && focusedCell.date === currentDate) {
+    return focusedCell.hour;
+  }
+  const hours = getTimelineHours(view.timelineSetting.startHour, view.timelineSetting.endHour);
+  const now = new Date();
+  const currentHour = toDateKey(now) === currentDate ? now.getHours() : view.timelineSetting.startHour;
+  return hours.reduce((closest, hour) => (Math.abs(hour - currentHour) < Math.abs(closest - currentHour) ? hour : closest), hours[0]);
+}
+
 function countFor(taskId, date, userId = activeUserId) {
   return (
     state.dailyCounts.find(
@@ -434,6 +450,28 @@ function renderPartnerPreview(view) {
   `;
 }
 
+function renderDailyCopyTextBlocks(view) {
+  const planText = copyFormat === 'category' ? view.planCategoryCopyText : view.planCopyText;
+  const actualText = copyFormat === 'category' ? view.actualCategoryCopyText : view.actualCopyText;
+  return `
+    <div class="copy-section">
+      <div class="copy-heading">
+        <span class="section-kicker">コピー用テキスト</span>
+        <div class="segmented compact-segmented">
+          <button class="${copyFormat === 'timeline' ? 'active' : ''}" data-action="copy-format" data-format="timeline">時系列</button>
+          <button class="${copyFormat === 'category' ? 'active' : ''}" data-action="copy-format" data-format="category">カテゴリ別</button>
+        </div>
+      </div>
+      <div class="copy-grid">
+        ${renderCopyTextarea('予定', planText)}
+        ${renderCopyTextarea('実績', actualText)}
+      </div>
+    </div>
+  `;
+}
+
+renderCopyTextBlocks = renderDailyCopyTextBlocks;
+
 function renderHeader(view) {
   const tabs = [
     ['dashboard', '日次入力', 'clock'],
@@ -467,7 +505,7 @@ function renderHeader(view) {
   `;
 }
 
-function renderTimelineColumn(title, collectionName, view) {
+function renderTimelineColumnLegacy(title, collectionName, view) {
   const hours = getTimelineHours(view.timelineSetting.startHour, view.timelineSetting.endHour);
   return `
     <div class="timeline-column">
@@ -537,7 +575,97 @@ function renderTimelineBoard(view) {
   `;
 }
 
-function renderShortcutPalette(view) {
+function renderActualItemRows(entry, hour) {
+  const items = getActualItems(entry);
+  if (items.length === 0) {
+    return '<div class="actual-item-empty">未入力</div>';
+  }
+  return `
+    <div class="actual-item-list">
+      ${items
+        .map((item, index) => {
+          const task = taskById(item.taskId);
+          return `
+            <div class="actual-item-row">
+              <span class="actual-item-task">${escapeHtml(task?.name ?? '未設定')}</span>
+              <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="actual-item-minutes" data-hour="${hour}" data-item-index="${index}" />
+              <span class="actual-minute-label">分</span>
+              <input class="actual-note-input" type="text" value="${escapeHtml(item.note ?? '')}" data-field="actual-item-note" data-hour="${hour}" data-item-index="${index}" aria-label="実績メモ" />
+              <button class="icon-button mini-icon-button" data-action="remove-actual-item" data-hour="${hour}" data-item-index="${index}" aria-label="実績項目を削除">${icon('trash')}</button>
+            </div>
+          `;
+        })
+        .join('')}
+    </div>
+  `;
+}
+
+function renderTimelineColumn(title, collectionName, view) {
+  const hours = getTimelineHours(view.timelineSetting.startHour, view.timelineSetting.endHour);
+  return `
+    <div class="timeline-column">
+      <div class="timeline-title">${escapeHtml(title)}</div>
+      ${hours
+        .map((hour) => {
+          const entry = entryFor(collectionName, hour);
+          const items = collectionName === 'dayActuals' ? getActualItems(entry) : [];
+          const firstTaskId = collectionName === 'dayActuals' ? items[0]?.taskId : entry?.taskId;
+          const task = firstTaskId ? taskById(firstTaskId) : null;
+          const isFocused =
+            focusedCell?.collectionName === collectionName &&
+            focusedCell?.userId === view.userId &&
+            focusedCell?.date === currentDate &&
+            focusedCell?.hour === hour;
+          return `
+            <div class="timeline-entry">
+              <button
+                class="timeline-cell ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
+                data-action="set-timeline"
+                data-timeline-cell="true"
+                data-collection="${collectionName}"
+                data-hour="${hour}"
+              >
+                <span class="timeline-hour">${hourRangeLabel(hour)}</span>
+                <span class="timeline-task">${
+                  collectionName === 'dayActuals'
+                    ? items.length > 0
+                      ? `${items.length}件 / ${items.reduce((sum, item) => sum + item.minutes, 0)}分`
+                      : '未入力'
+                    : task
+                      ? escapeHtml(task.name)
+                      : '未入力'
+                }</span>
+              </button>
+              ${
+                collectionName === 'dayPlans'
+                  ? `
+                    <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'}>
+                      ${icon('check')}<span>予定通り</span>
+                    </button>
+                    <label class="timeline-note-wrap">
+                      <input
+                        class="timeline-note"
+                        type="text"
+                        value="${escapeHtml(entry?.note ?? '')}"
+                        data-field="timeline-note"
+                        data-collection="${collectionName}"
+                        data-hour="${hour}"
+                        aria-label="自由記入"
+                        ${entry ? '' : 'disabled'}
+                      />
+                    </label>
+                  `
+                  : renderActualItemRows(entry, hour)
+              }
+            </div>
+          `;
+        })
+        .join('')}
+    </div>
+  `;
+}
+
+function renderShortcutPaletteLegacy(view) {
   const groupedTasks = activeProjects()
     .map((project) => ({
       project,
@@ -594,6 +722,60 @@ function weeklyProjectGoalFor(projectId, userId = activeUserId) {
   );
 }
 
+function renderShortcutPalette(view) {
+  const targetHour = activeActualHour(view);
+  const groupedTasks = activeProjects()
+    .map((project) => ({
+      project,
+      tasks: view.activeTasks.filter((task) => task.projectId === project.id)
+    }))
+    .filter((group) => group.tasks.length > 0);
+
+  return `
+    <aside class="panel shortcut-panel">
+      <div class="panel-heading compact">
+        <div>
+          <span class="section-kicker">小分類ショートカット</span>
+          <h2>加算先: ${hourRangeLabel(targetHour)}</h2>
+        </div>
+      </div>
+      <div class="shortcut-grid">
+        <button class="shortcut-card ${selectedTaskId === '' ? 'selected' : ''}" data-action="select-task" data-task-id="">
+          <span class="shortcut-name">消去</span>
+        </button>
+        ${groupedTasks
+          .map(
+            ({ project, tasks }) => `
+              <div class="shortcut-group">
+                <h3>${escapeHtml(project.name)}</h3>
+                <div class="shortcut-group-grid">
+                  ${tasks
+                    .map(
+                      (task) => `
+                        <div class="shortcut-task-line">
+                          <button class="shortcut-card nature-${task.nature} ${selectedTaskId === task.id ? 'selected' : ''}" data-action="select-task" data-task-id="${escapeHtml(task.id)}" title="${escapeHtml(task.description || '説明は未入力です')}">
+                            <span class="shortcut-name">${escapeHtml(task.name)}</span>
+                          </button>
+                          <div class="shortcut-minute-actions">
+                            <button data-action="add-actual-minutes" data-task-id="${escapeHtml(task.id)}" data-minutes="15">+15</button>
+                            <button data-action="add-actual-minutes" data-task-id="${escapeHtml(task.id)}" data-minutes="30">+30</button>
+                            <button data-action="add-actual-minutes" data-task-id="${escapeHtml(task.id)}" data-minutes="60">+60</button>
+                          </div>
+                        </div>
+                      `
+                    )
+                    .join('')}
+                </div>
+              </div>
+            `
+          )
+          .join('')}
+      </div>
+      ${renderTaskForm('quick-task-form', 'ワンタップ追加', true)}
+    </aside>
+  `;
+}
+
 function monthlyProjectGoalFor(userId, month, projectId) {
   return (
     (state.monthlyProjectGoals ?? []).find(
@@ -605,7 +787,7 @@ function monthlyProjectGoalFor(userId, month, projectId) {
   );
 }
 
-function renderProjectTaskCounts(projectId, tasks) {
+function renderProjectTaskCountsLegacy(projectId, tasks) {
   const projectTasks = tasks.filter((task) => task.projectId === projectId);
   if (projectTasks.length === 0) {
     return '<p class="empty-state compact">件数管理タスクなし</p>';
@@ -679,6 +861,53 @@ function renderWeeklyProjectGoals(view) {
           .join('')}
       </div>
     </section>
+  `;
+}
+
+function renderProjectTaskCounts(projectId, tasks) {
+  const projectTasks = tasks.filter((task) => task.projectId === projectId);
+  if (projectTasks.length === 0) {
+    return '<p class="empty-state compact">件数管理タスクなし</p>';
+  }
+  const summary = computeProjectCountSummaries(state, activeUserId, weekStart()).find((row) => row.projectId === projectId);
+
+  return `
+    <div class="project-count-list">
+      ${projectTasks
+        .map((task) => {
+          const actualCount = weeklyCountFor(task.id);
+          const targetCount = weeklyTargetFor(task.id);
+          const tone = countGoalTone(targetCount, actualCount);
+          const taskMinutes = (state.dayActuals ?? [])
+            .filter((entry) => (entry.userId ?? 'ishida') === activeUserId && getWeekStart(entry.date) === weekStart())
+            .flatMap((entry) => getActualItems(entry))
+            .filter((item) => item.taskId === task.id)
+            .reduce((sum, item) => sum + item.minutes, 0);
+          const standard = actualCount === 0 ? '-' : `${Math.round(taskMinutes / actualCount)}分`;
+          return `
+            <div class="project-count-row">
+              <div>
+                <span class="project-count-task">${escapeHtml(task.name)}</span>
+                <span class="project-count-meta count-tone-${tone}">
+                  件数: ${actualCount}件${targetCount == null ? '' : ` / 目標 ${targetCount}件`} / 合計時間: ${(taskMinutes / 60).toFixed(1)}h (1件あたり ${standard})
+                </span>
+              </div>
+              <div class="stepper">
+                <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="-1" aria-label="${escapeHtml(task.name)}を1件減らす">${icon('minus')}</button>
+                <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="1" aria-label="${escapeHtml(task.name)}を1件増やす">${icon('plus')}</button>
+              </div>
+            </div>
+          `;
+        })
+        .join('')}
+      ${
+        summary
+          ? `<p class="project-count-total">大分類合計: ${(summary.totalMinutes / 60).toFixed(1)}h / 標準工数 ${
+              summary.standardMinutesPerCount == null ? '-' : `${summary.standardMinutesPerCount}分`
+            }</p>`
+          : ''
+      }
+    </div>
   `;
 }
 
@@ -1025,6 +1254,10 @@ function handleClick(event) {
       navigator.clipboard.writeText(text).catch((error) => console.error('Failed to copy daily text', error));
     }
   }
+  if (action === 'copy-format') {
+    copyFormat = button.dataset.format === 'category' ? 'category' : 'timeline';
+    render();
+  }
   if (action === 'logout') {
     authController.logout().catch((error) => console.error('Failed to logout', error));
   }
@@ -1052,6 +1285,27 @@ function handleClick(event) {
   }
   if (action === 'copy-plan') {
     commit(copyPlanToActuals(state, activeUserId, currentDate));
+  }
+  if (action === 'copy-plan-hour') {
+    focusedCell = { collectionName: 'dayActuals', userId: activeUserId, date: currentDate, hour: Number(button.dataset.hour) };
+    commit(copyPlanHourToActual(state, activeUserId, currentDate, Number(button.dataset.hour)));
+  }
+  if (action === 'add-actual-minutes') {
+    const view = createDashboardViewModel(state, currentDate, activeUserId);
+    const hour = activeActualHour(view);
+    focusedCell = { collectionName: 'dayActuals', userId: activeUserId, date: currentDate, hour };
+    commit(addActualMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes)));
+  }
+  if (action === 'remove-actual-item') {
+    commit(
+      removeActualItem(
+        state,
+        activeUserId,
+        currentDate,
+        Number(button.dataset.hour),
+        Number(button.dataset.itemIndex)
+      )
+    );
   }
   if (action === 'increment-count') {
     commit(incrementDailyCount(state, currentDate, button.dataset.taskId, Number(button.dataset.delta), activeUserId));
@@ -1141,6 +1395,18 @@ function handleChange(event) {
       )
     );
   }
+  if (target.dataset.field === 'actual-item-minutes') {
+    commit(
+      updateActualItem(
+        state,
+        activeUserId,
+        currentDate,
+        Number(target.dataset.hour),
+        Number(target.dataset.itemIndex),
+        { minutes: Number(target.value) }
+      )
+    );
+  }
   if (target.dataset.taskField) {
     const field = target.dataset.taskField;
     const value = target.type === 'checkbox' ? target.checked : target.value;
@@ -1165,6 +1431,23 @@ function handleInput(event) {
         currentDate,
         Number(target.dataset.hour),
         target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'actual-item-note') {
+    if (event.isComposing) {
+      return;
+    }
+    commit(
+      updateActualItem(
+        state,
+        activeUserId,
+        currentDate,
+        Number(target.dataset.hour),
+        Number(target.dataset.itemIndex),
+        { note: target.value }
       ),
       { render: false }
     );
@@ -1197,6 +1480,20 @@ function handleInput(event) {
 
 function handleCompositionEnd(event) {
   const target = event.target;
+  if (target.dataset.field === 'actual-item-note') {
+    commit(
+      updateActualItem(
+        state,
+        activeUserId,
+        currentDate,
+        Number(target.dataset.hour),
+        Number(target.dataset.itemIndex),
+        { note: target.value }
+      ),
+      { render: false }
+    );
+    return;
+  }
   if (target.dataset.field !== 'timeline-note') return;
   commit(
     setTimelineNote(

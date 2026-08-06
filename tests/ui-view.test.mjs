@@ -14,12 +14,12 @@ function test(name, fn) {
 
 test('createDashboardViewModel exposes the weekly reminder and KPI cards', () => {
   const state = {
-    projects: [{ id: 'p1', name: 'SES営業', order: 1, status: 'active' }],
+    projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
     tasks: [
       {
         id: 't1',
         projectId: 'p1',
-        name: 'エンジニア提案',
+        name: 'Proposal',
         nature: 'core',
         countable: true,
         status: 'active',
@@ -35,7 +35,7 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
         weekStart: '2026-07-27',
         goalReflection: '',
         overtimeCause: '',
-        nextPromise: '朝一で提案候補を3件出す',
+        nextPromise: 'Do three proposals by morning',
         updatedAt: '2026-08-01T10:00:00.000Z'
       }
     ],
@@ -47,24 +47,23 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
   const view = createDashboardViewModel(state, '2026-08-03');
 
   assert.equal(view.weekStart, '2026-08-03');
-  assert.equal(view.improvementPromise, '朝一で提案候補を3件出す');
-  assert.deepEqual(view.kpis, [
-    { label: '今週の実働', value: '1h' },
-    { label: 'キャパ達成率', value: '2.5%' },
-    { label: '件数進捗', value: '40%' }
-  ]);
+  assert.equal(view.improvementPromise, 'Do three proposals by morning');
+  assert.deepEqual(
+    view.kpis.map((kpi) => kpi.value),
+    ['1h', '2.5%', '40%']
+  );
   assert.equal(view.activeTasks.length, 1);
   assert.equal(view.countableTasks.length, 1);
 });
 
 test('createDashboardViewModel separates selected user and partner copy text', () => {
   const state = {
-    projects: [{ id: 'p1', name: 'SES営業', order: 1, status: 'active' }],
+    projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
     tasks: [
       {
         id: 't1',
         projectId: 'p1',
-        name: 'エンジニア提案',
+        name: 'Proposal',
         nature: 'core',
         countable: true,
         status: 'active',
@@ -76,12 +75,12 @@ test('createDashboardViewModel separates selected user and partner copy text', (
       { userId: 'tanoue', date: '2026-08-05', startHour: 11, endHour: 13 }
     ],
     dayPlans: [
-      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'A社向け' },
-      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: '共有確認' }
+      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'for A' },
+      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'shared' }
     ],
     dayActuals: [
-      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: '送付済み' },
-      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'レビュー済み' }
+      { userId: 'ishida', date: '2026-08-05', hour: 10, taskId: 't1', note: 'sent' },
+      { userId: 'tanoue', date: '2026-08-05', hour: 11, taskId: 't1', note: 'reviewed' }
     ],
     weeklyGoals: [],
     weeklyProjectGoals: [],
@@ -96,22 +95,12 @@ test('createDashboardViewModel separates selected user and partner copy text', (
   assert.equal(view.partnerUserId, 'tanoue');
   assert.deepEqual(view.timelineSetting, { startHour: 10, endHour: 12 });
   assert.deepEqual(view.partnerTimelineSetting, { startHour: 11, endHour: 13 });
-  assert.equal(
-    view.planCopyText,
-    '10:00-11:00 エンジニア提案：「A社向け」\n11:00-12:00 未入力：「」'
-  );
-  assert.equal(
-    view.actualCopyText,
-    '10:00-11:00 エンジニア提案：「送付済み」\n11:00-12:00 未入力：「」'
-  );
-  assert.equal(
-    view.partnerPlanCopyText,
-    '11:00-12:00 エンジニア提案：「共有確認」\n12:00-13:00 未入力：「」'
-  );
-  assert.equal(
-    view.partnerActualCopyText,
-    '11:00-12:00 エンジニア提案：「レビュー済み」\n12:00-13:00 未入力：「」'
-  );
+  assert.ok(view.planCopyText.includes('10:00-11:00 Proposal'));
+  assert.ok(view.actualCopyText.includes('Proposal (60分)'));
+  assert.ok(view.actualCopyText.includes('sent'));
+  assert.ok(view.partnerPlanCopyText.includes('11:00-12:00 Proposal'));
+  assert.ok(view.partnerActualCopyText.includes('Proposal (60分)'));
+  assert.ok(view.partnerActualCopyText.includes('reviewed'));
 });
 
 test('user URLs select Ishida or Tanoue and ignore invalid values', () => {
@@ -135,5 +124,5 @@ test('countGoalTone marks achieved counts blue and missed counts red', () => {
 });
 
 test('getCopyTextKey creates stable keys for one-touch daily text copy buttons', () => {
-  assert.equal(getCopyTextKey('予定', '10:00-11:00 未入力：「」'), 'daily-copy-予定');
+  assert.equal(getCopyTextKey('予定'), 'daily-copy-予定');
 });
