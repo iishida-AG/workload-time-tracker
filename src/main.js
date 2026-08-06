@@ -70,6 +70,11 @@ export function buildUserUrl(url, userId) {
   return parsed.toString();
 }
 
+export function countGoalTone(targetCount, actualCount) {
+  if (targetCount == null) return '';
+  return actualCount >= targetCount ? 'achieved' : 'missed';
+}
+
 function currentPageUrl() {
   return typeof window === 'undefined' ? 'https://example.github.io/workload/' : window.location.href;
 }
@@ -277,6 +282,10 @@ function weeklyCountFor(taskId, userId = activeUserId) {
     .reduce((sum, row) => sum + row.count, 0);
 }
 
+function weeklyTargetFor(taskId) {
+  return state.weeklyGoals.find((goal) => goal.weekStart === weekStart() && goal.taskId === taskId)?.targetCount ?? null;
+}
+
 function renderReminderStrip(view) {
   return `
     <section class="reminder-strip">
@@ -454,7 +463,6 @@ function renderTimelineColumn(title, collectionName, view) {
       ${hours.map((hour) => {
         const entry = entryFor(collectionName, hour);
         const task = entry ? taskById(entry.taskId) : null;
-        const project = task ? projectById(task.projectId) : null;
         const isFocused =
           focusedCell?.collectionName === collectionName &&
           focusedCell?.userId === view.userId &&
@@ -471,7 +479,6 @@ function renderTimelineColumn(title, collectionName, view) {
             >
               <span class="timeline-hour">${hourRangeLabel(hour)}</span>
               <span class="timeline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
-              <span class="timeline-project">${project ? escapeHtml(project.name) : 'タスクを選択'}</span>
             </button>
             <label class="timeline-note-wrap">
               <span>自由記入</span>
@@ -531,15 +538,12 @@ function renderShortcutPalette(view) {
       <div class="shortcut-grid">
         <button class="shortcut-card ${selectedTaskId === '' ? 'selected' : ''}" data-action="select-task" data-task-id="">
           <span class="shortcut-name">消去</span>
-          <span class="shortcut-project">枠を空にする</span>
         </button>
         ${view.activeTasks
           .map((task) => {
-            const project = projectById(task.projectId);
             return `
-              <button class="shortcut-card nature-${task.nature} ${selectedTaskId === task.id ? 'selected' : ''}" data-action="select-task" data-task-id="${escapeHtml(task.id)}">
+              <button class="shortcut-card nature-${task.nature} ${selectedTaskId === task.id ? 'selected' : ''}" data-action="select-task" data-task-id="${escapeHtml(task.id)}" title="${escapeHtml(task.description || '説明は未入力です')}">
                 <span class="shortcut-name">${escapeHtml(task.name)}</span>
-                <span class="shortcut-project">${escapeHtml(project?.name ?? '')}</span>
               </button>
             `;
           })
@@ -582,18 +586,23 @@ function renderProjectTaskCounts(projectId, tasks) {
     <div class="project-count-list">
       ${projectTasks
         .map(
-          (task) => `
+          (task) => {
+            const actualCount = weeklyCountFor(task.id);
+            const targetCount = weeklyTargetFor(task.id);
+            const tone = countGoalTone(targetCount, actualCount);
+            return `
             <div class="project-count-row">
               <div>
                 <span class="project-count-task">${escapeHtml(task.name)}</span>
-                <span class="project-count-meta">週合計 ${weeklyCountFor(task.id)}件 / 今日 ${countFor(task.id, currentDate)}件</span>
+                <span class="project-count-meta count-tone-${tone}">週合計 ${actualCount}件${targetCount == null ? '' : ` / 目標 ${targetCount}件`} / 今日 ${countFor(task.id, currentDate)}件</span>
               </div>
               <div class="stepper">
                 <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="-1" aria-label="${escapeHtml(task.name)}を1件減らす">${icon('minus')}</button>
                 <button data-action="increment-count" data-task-id="${escapeHtml(task.id)}" data-delta="1" aria-label="${escapeHtml(task.name)}を1件増やす">${icon('plus')}</button>
               </div>
             </div>
-          `
+          `;
+          }
         )
         .join('')}
     </div>

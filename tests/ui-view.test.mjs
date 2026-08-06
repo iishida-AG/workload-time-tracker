@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createDashboardViewModel } from '../src/ui/view-model.js';
-import { buildUserUrl, getUserIdFromUrl } from '../src/main.js';
+import { buildUserUrl, countGoalTone, getUserIdFromUrl } from '../src/main.js';
 
 function test(name, fn) {
   try {
@@ -126,4 +126,10 @@ test('buildUserUrl replaces the user query parameter', () => {
     buildUserUrl('https://example.github.io/workload/?user=ishida&week=2026-08-03', 'tanoue'),
     'https://example.github.io/workload/?user=tanoue&week=2026-08-03'
   );
+});
+
+test('countGoalTone marks achieved counts blue and missed counts red', () => {
+  assert.equal(countGoalTone(10, 12), 'achieved');
+  assert.equal(countGoalTone(10, 9), 'missed');
+  assert.equal(countGoalTone(null, 9), '');
 });

@@ -443,14 +443,13 @@ main {
 
 .timeline-cell {
   display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
+  grid-template-columns: 104px minmax(0, 1fr);
   grid-template-areas:
-    "hour task"
-    "hour project";
+    "hour task";
   align-items: center;
   width: 100%;
-  min-height: 64px;
-  padding: 10px 12px;
+  min-height: 30px;
+  padding: 5px 10px;
   border: 1px solid #dfe6ef;
   border-left-width: 5px;
   border-radius: 8px;
@@ -482,14 +481,6 @@ main {
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: 800;
-}
-
-.timeline-project {
-  grid-area: project;
-  min-width: 0;
-  color: #667085;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .timeline-note-wrap,
@@ -589,10 +580,9 @@ main {
 
 .shortcut-card {
   display: grid;
-  gap: 4px;
   width: 100%;
-  min-height: 58px;
-  padding: 10px 12px;
+  min-height: 30px;
+  padding: 5px 10px;
   border: 1px solid #dfe6ef;
   border-left-width: 5px;
   border-radius: 8px;
@@ -610,13 +600,6 @@ main {
   min-width: 0;
   overflow-wrap: anywhere;
   font-weight: 800;
-}
-
-.shortcut-project {
-  min-width: 0;
-  color: #667085;
-  font-size: 12px;
-  overflow-wrap: anywhere;
 }
 
 .counter-grid {
@@ -786,6 +769,14 @@ main {
   font-weight: 700;
 }
 
+.count-tone-achieved {
+  color: #2364d2;
+}
+
+.count-tone-missed {
+  color: #b42318;
+}
+
 .project-actual-count strong {
   display: block;
   margin-top: 3px;
@@ -801,8 +792,8 @@ main {
 .project-goal-text textarea {
   width: 100%;
   min-width: 0;
-  min-height: 96px;
-  padding: 10px;
+  min-height: 52px;
+  padding: 8px 10px;
   border: 1px solid #d7deea;
   border-radius: 8px;
   background: #fff;
