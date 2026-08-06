@@ -7,6 +7,7 @@ import {
   copyPlanToActuals,
   copyPlanHourToActual,
   addActualMinutes,
+  formatActualItemRanges,
   getActualItems,
   incrementDailyCount,
   removeActualItem,
@@ -580,6 +581,7 @@ function renderActualItemRows(entry, hour) {
   if (items.length === 0) {
     return '<div class="actual-item-empty">未入力</div>';
   }
+  const ranges = formatActualItemRanges(hour, items);
   return `
     <div class="actual-item-list">
       ${items
@@ -587,6 +589,7 @@ function renderActualItemRows(entry, hour) {
           const task = taskById(item.taskId);
           return `
             <div class="actual-item-row">
+              <span class="actual-item-range">${escapeHtml(ranges[index])}</span>
               <span class="actual-item-task">${escapeHtml(task?.name ?? '未設定')}</span>
               <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="actual-item-minutes" data-hour="${hour}" data-item-index="${index}" />
               <span class="actual-minute-label">分</span>
@@ -639,12 +642,14 @@ function renderTimelineColumn(title, collectionName, view) {
               ${
                 collectionName === 'dayPlans'
                   ? `
-                    <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'}>
-                      ${icon('check')}<span>予定通り</span>
-                    </button>
-                    <label class="timeline-note-wrap">
+                    <div class="plan-inline-row">
+                      <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'} title="予定通り完了">
+                        ${icon('check')}<span>予定通り</span>
+                      </button>
+                      <span class="plan-inline-time">${hourRangeLabel(hour)}</span>
+                      <span class="plan-inline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
                       <input
-                        class="timeline-note"
+                        class="timeline-note plan-inline-note"
                         type="text"
                         value="${escapeHtml(entry?.note ?? '')}"
                         data-field="timeline-note"
@@ -653,7 +658,7 @@ function renderTimelineColumn(title, collectionName, view) {
                         aria-label="自由記入"
                         ${entry ? '' : 'disabled'}
                       />
-                    </label>
+                    </div>
                   `
                   : renderActualItemRows(entry, hour)
               }
@@ -1262,7 +1267,7 @@ function handleClick(event) {
     authController.logout().catch((error) => console.error('Failed to logout', error));
   }
   if (action === 'select-task') {
-    selectedTaskId = button.dataset.taskId;
+    selectedTaskId = selectedTaskId === button.dataset.taskId ? '' : button.dataset.taskId;
     render();
   }
   if (action === 'set-timeline') {

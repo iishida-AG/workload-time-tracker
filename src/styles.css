@@ -516,6 +516,30 @@ main {
   white-space: nowrap;
 }
 
+.plan-inline-row {
+  display: grid;
+  grid-template-columns: auto 96px minmax(90px, 1fr) minmax(120px, 1fr);
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.plan-inline-time,
+.plan-inline-task {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.plan-inline-time {
+  color: #667085;
+}
+
+.plan-inline-note {
+  min-height: 28px;
+}
+
 .actual-item-list {
   display: grid;
   gap: 4px;
@@ -524,10 +548,17 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: minmax(86px, 1fr) 54px 18px minmax(90px, 1fr) 32px;
+  grid-template-columns: 92px minmax(76px, 0.9fr) 54px 18px minmax(90px, 1fr) 32px;
   gap: 4px;
   align-items: center;
   min-width: 0;
+}
+
+.actual-item-range {
+  color: #2364d2;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
 }
 
 .actual-item-task {
@@ -1322,6 +1353,9 @@ main {
   .kpi-strip,
   .timeline-grid,
   .timeline-entry,
+  .plan-inline-row,
+  .actual-item-row,
+  .shortcut-task-line,
   .copy-grid,
   .summary-grid,
   .project-goal-grid,

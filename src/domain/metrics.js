@@ -88,6 +88,21 @@ function formatHour(hour) {
   return `${hour}:00`;
 }
 
+function formatMinuteClock(totalMinutes) {
+  const hour = Math.floor(totalMinutes / 60);
+  const minute = totalMinutes % 60;
+  return `${hour}:${String(minute).padStart(2, '0')}`;
+}
+
+export function formatActualItemRanges(hour, items) {
+  let cursor = hour * 60;
+  return items.map((item) => {
+    const start = cursor;
+    cursor += cleanMinutes(item.minutes, 0);
+    return `${formatMinuteClock(start)}-${formatMinuteClock(cursor)}`;
+  });
+}
+
 function formatHours(minutes) {
   return `${round(minutes / 60, 1)}h`;
 }
@@ -252,14 +267,15 @@ export function formatDailyScheduleText(state, collectionName, userId, date, sta
       const entry = (state[collectionName] ?? []).find((row) => sameTimelineSlot(row, userId, date, hour));
       if (collectionName === 'dayActuals') {
         const items = getActualItems(entry);
+        const ranges = formatActualItemRanges(hour, items);
         const text =
           items.length === 0
             ? '未入力'
             : items
-                .map((item) => {
+                .map((item, index) => {
                   const taskName = tasks.get(item.taskId)?.name ?? '未設定';
                   const note = item.note ? `：「${item.note}」` : '';
-                  return `${taskName} (${item.minutes}分)${note}`;
+                  return `${ranges[index]} ${taskName} (${item.minutes}分)${note}`;
                 })
                 .join('、');
         return `${formatHour(hour)}-${formatHour(hour + 1)} ${text}`;

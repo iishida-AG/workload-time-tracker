@@ -8,6 +8,7 @@ import {
   copyPlanHourToActual,
   copyPlanToActuals,
   formatDailyCategorySummaryText,
+  formatActualItemRanges,
   formatDailyScheduleText,
   setTimelineEntry,
   setTimelineNote
@@ -158,7 +159,17 @@ test('formatDailyScheduleText lists multiple actual items chronologically', () =
   );
   const text = formatDailyScheduleText(multiState, 'dayActuals', 'ishida', '2026-08-05', 10, 11);
 
-  assert.equal(text, '10:00-11:00 Proposal (40分)、Mail (20分)');
+  assert.equal(text, '10:00-11:00 10:00-10:40 Proposal (40分)、10:40-11:00 Mail (20分)');
+});
+
+test('formatActualItemRanges accumulates actual items within and beyond one hour', () => {
+  const ranges = formatActualItemRanges(10, [
+    { taskId: 'mail', minutes: 15 },
+    { taskId: 'proposal', minutes: 45 },
+    { taskId: 'proposal', minutes: 15 }
+  ]);
+
+  assert.deepEqual(ranges, ['10:00-10:15', '10:15-11:00', '11:00-11:15']);
 });
 
 test('formatDailyScheduleText keeps single-digit hours unpadded', () => {
