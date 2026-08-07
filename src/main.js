@@ -7,16 +7,19 @@ import {
   copyPlanToActuals,
   copyPlanHourToActual,
   addActualMinutes,
+  addPlanMinutes,
   formatActualItemRanges,
   getActualItems,
   incrementDailyCount,
   removeActualItem,
+  removePlanItem,
   setTimelineEntry,
   setTimelineNote,
-  updateActualItem
+  updateActualItem,
+  updatePlanItem
 } from './domain/metrics.js';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260806-daily-report-v2';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260807-schedule-v3';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js';
@@ -582,10 +585,10 @@ function renderTimelineBoard(view) {
   `;
 }
 
-function renderActualItemRows(entry, hour) {
+function renderTimelineItemRows(entry, hour, collectionName) {
   const items = getActualItems(entry);
   if (items.length === 0) {
-    return '<div class="actual-item-empty">未入力</div>';
+    return '<div class="actual-item-empty">\u672a\u5165\u529b</div>';
   }
   const ranges = formatActualItemRanges(hour, items);
   return `
@@ -596,11 +599,11 @@ function renderActualItemRows(entry, hour) {
           return `
             <div class="actual-item-row">
               <span class="actual-item-range">${escapeHtml(ranges[index])}</span>
-              <span class="actual-item-task">${escapeHtml(task?.name ?? '未設定')}</span>
-              <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="actual-item-minutes" data-hour="${hour}" data-item-index="${index}" />
-              <span class="actual-minute-label">分</span>
-              <input class="actual-note-input" type="text" value="${escapeHtml(item.note ?? '')}" data-field="actual-item-note" data-hour="${hour}" data-item-index="${index}" aria-label="実績メモ" />
-              <button class="icon-button mini-icon-button" data-action="remove-actual-item" data-hour="${hour}" data-item-index="${index}" aria-label="実績項目を削除">${icon('trash')}</button>
+              <span class="actual-item-task">${escapeHtml(task?.name ?? '\u672a\u8a2d\u5b9a')}</span>
+              <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="timeline-item-minutes" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" />
+              <span class="actual-minute-label">\u5206</span>
+              <input class="actual-note-input" type="text" value="${escapeHtml(item.note ?? '')}" data-field="timeline-item-note" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" aria-label="\u30e1\u30e2" />
+              <button class="icon-button mini-icon-button" data-action="remove-timeline-item" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" aria-label="\u9805\u76ee\u3092\u524a\u9664">${icon('trash')}</button>
             </div>
           `;
         })
@@ -617,8 +620,8 @@ function renderTimelineColumn(title, collectionName, view) {
       ${hours
         .map((hour) => {
           const entry = entryFor(collectionName, hour);
-          const items = collectionName === 'dayActuals' ? getActualItems(entry) : [];
-          const firstTaskId = collectionName === 'dayActuals' ? items[0]?.taskId : entry?.taskId;
+          const items = getActualItems(entry);
+          const firstTaskId = items[0]?.taskId ?? entry?.taskId;
           const task = firstTaskId ? taskById(firstTaskId) : null;
           const isFocused =
             focusedCell?.collectionName === collectionName &&
@@ -627,30 +630,20 @@ function renderTimelineColumn(title, collectionName, view) {
             focusedCell?.hour === hour;
           if (collectionName === 'dayPlans') {
             return `
-              <div class="timeline-entry plan-entry">
-                <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'} title="予定通り完了" aria-label="予定通り完了">
+              <div class="timeline-entry actual-entry plan-entry">
+                <button class="ghost-button planned-done-button" data-action="copy-plan-hour" data-hour="${hour}" ${entry ? '' : 'disabled'} title="\u4e88\u5b9a\u901a\u308a\u5b8c\u4e86" aria-label="\u4e88\u5b9a\u901a\u308a\u5b8c\u4e86">
                   ${icon('check')}
                 </button>
                 <button
-                  class="plan-inline-select ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
+                  class="timeline-cell ${isFocused ? 'focused' : ''} nature-${task?.nature ?? 'empty'}"
                   data-action="set-timeline"
                   data-timeline-cell="true"
                   data-collection="${collectionName}"
                   data-hour="${hour}"
                 >
-                  <span class="plan-inline-time">${hourRangeLabel(hour)}</span>
-                  <span class="plan-inline-task">${task ? escapeHtml(task.name) : '未入力'}</span>
+                  <span class="timeline-hour">${hourRangeLabel(hour)}</span>
                 </button>
-                <input
-                  class="timeline-note plan-inline-note"
-                  type="text"
-                  value="${escapeHtml(entry?.note ?? '')}"
-                  data-field="timeline-note"
-                  data-collection="${collectionName}"
-                  data-hour="${hour}"
-                  aria-label="自由記入"
-                  ${entry ? '' : 'disabled'}
-                />
+                ${renderTimelineItemRows(entry, hour, collectionName)}
               </div>
             `;
           }
@@ -665,7 +658,7 @@ function renderTimelineColumn(title, collectionName, view) {
               >
                 <span class="timeline-hour">${hourRangeLabel(hour)}</span>
               </button>
-              ${renderActualItemRows(entry, hour)}
+              ${renderTimelineItemRows(entry, hour, collectionName)}
             </div>
           `;
         })
@@ -1305,9 +1298,22 @@ function handleClick(event) {
   }
   if (action === 'add-actual-minutes') {
     const view = createDashboardViewModel(state, currentDate, activeUserId);
-    const hour = activeActualHour(view);
-    focusedCell = { collectionName: 'dayActuals', userId: activeUserId, date: currentDate, hour };
-    commit(addActualMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes)));
+    const collectionName = focusedCell?.collectionName === 'dayPlans' ? 'dayPlans' : 'dayActuals';
+    const hour = collectionName === 'dayPlans' && focusedCell ? focusedCell.hour : activeActualHour(view);
+    focusedCell = { collectionName, userId: activeUserId, date: currentDate, hour };
+    commit(
+      collectionName === 'dayPlans'
+        ? addPlanMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes))
+        : addActualMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes))
+    );
+  }
+  if (action === 'remove-timeline-item') {
+    const collectionName = button.dataset.collection;
+    commit(
+      collectionName === 'dayPlans'
+        ? removePlanItem(state, activeUserId, currentDate, Number(button.dataset.hour), Number(button.dataset.itemIndex))
+        : removeActualItem(state, activeUserId, currentDate, Number(button.dataset.hour), Number(button.dataset.itemIndex))
+    );
   }
   if (action === 'remove-actual-item') {
     commit(
@@ -1414,17 +1420,16 @@ function handleChange(event) {
       )
     );
   }
-  if (target.dataset.field === 'actual-item-minutes') {
+  if (target.dataset.field === 'timeline-item-minutes') {
+    const collectionName = target.dataset.collection;
     commit(
-      updateActualItem(
-        state,
-        activeUserId,
-        currentDate,
-        Number(target.dataset.hour),
-        Number(target.dataset.itemIndex),
-        { minutes: Number(target.value) }
-      )
+      collectionName === 'dayPlans'
+        ? updatePlanItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { minutes: Number(target.value) })
+        : updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { minutes: Number(target.value) })
     );
+  }
+  if (target.dataset.field === 'actual-item-minutes') {
+    commit(updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { minutes: Number(target.value) }));
   }
   if (target.dataset.taskField) {
     const field = target.dataset.taskField;
@@ -1455,62 +1460,31 @@ function handleInput(event) {
     );
     return;
   }
-  if (target.dataset.field === 'actual-item-note') {
+  if (target.dataset.field === 'timeline-item-note') {
     if (event.isComposing) {
       return;
     }
+    const collectionName = target.dataset.collection;
     commit(
-      updateActualItem(
-        state,
-        activeUserId,
-        currentDate,
-        Number(target.dataset.hour),
-        Number(target.dataset.itemIndex),
-        { note: target.value }
-      ),
+      collectionName === 'dayPlans'
+        ? updatePlanItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { note: target.value })
+        : updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { note: target.value }),
       { render: false }
     );
     return;
   }
-  if (target.dataset.field === 'weekly-project-goal') {
-    commit(upsertWeeklyProjectGoal(state, activeUserId, weekStart(), target.dataset.projectId, target.value), {
-      render: false
-    });
-    return;
-  }
-  if (target.dataset.field === 'monthly-project-goal') {
+  if (target.dataset.field === 'timeline-item-note') {
+    const collectionName = target.dataset.collection;
     commit(
-      upsertMonthlyProjectGoal(
-        state,
-        target.dataset.userId,
-        currentDate.slice(0, 7),
-        target.dataset.projectId,
-        target.value
-      ),
+      collectionName === 'dayPlans'
+        ? updatePlanItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { note: target.value })
+        : updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { note: target.value }),
       { render: false }
     );
     return;
   }
-  if (!target.dataset.reviewField) return;
-  commit(upsertReview(state, weekStart(), { [target.dataset.reviewField]: target.value }), {
-    render: false
-  });
-}
-
-function handleCompositionEnd(event) {
-  const target = event.target;
   if (target.dataset.field === 'actual-item-note') {
-    commit(
-      updateActualItem(
-        state,
-        activeUserId,
-        currentDate,
-        Number(target.dataset.hour),
-        Number(target.dataset.itemIndex),
-        { note: target.value }
-      ),
-      { render: false }
-    );
+    commit(updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { note: target.value }), { render: false });
     return;
   }
   if (target.dataset.field !== 'timeline-note') return;

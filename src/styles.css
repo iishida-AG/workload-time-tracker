@@ -586,7 +586,7 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: 92px minmax(76px, 0.9fr) 54px 18px minmax(90px, 1fr) 32px;
+  grid-template-columns: minmax(74px, 88px) minmax(64px, 0.8fr) 48px 16px minmax(80px, 1fr) 28px;
   gap: 4px;
   align-items: center;
   min-width: 0;
@@ -624,8 +624,10 @@ main {
 }
 
 .mini-icon-button {
-  width: 32px;
+  width: 28px;
+  min-width: 28px;
   min-height: 28px;
+  padding: 0;
 }
 
 .copy-section {

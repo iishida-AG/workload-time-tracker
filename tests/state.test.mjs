@@ -153,7 +153,7 @@ test('upsertTimelineSetting stores day-specific hours per user', () => {
   const next = upsertTimelineSetting(state, 'ishida', '2026-08-05', 10, 20);
 
   assert.deepEqual(getTimelineSetting(next, 'ishida', '2026-08-05'), { startHour: 10, endHour: 20 });
-  assert.deepEqual(getTimelineSetting(next, 'tanoue', '2026-08-05'), { startHour: 9, endHour: 20 });
+  assert.deepEqual(getTimelineSetting(next, 'tanoue', '2026-08-05'), { startHour: 10, endHour: 19 });
 });
 
 test('upsertTimelineSetting preserves midnight as a valid start hour', () => {

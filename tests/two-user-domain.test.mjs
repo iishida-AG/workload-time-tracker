@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { getTimelineHours } from '../src/domain/calendar.js';
 import {
   addActualMinutes,
+  addPlanMinutes,
   clearTimelineEntry,
   computeProjectCountSummaries,
   computeReviewMetrics,
@@ -136,6 +137,22 @@ test('copyPlanHourToActual copies a planned hour as a 60 minute actual item', ()
   assert.deepEqual(actual.items, [{ taskId: 'proposal', note: 'for A', minutes: 60 }]);
 });
 
+test('addPlanMinutes allows multiple planned tasks inside one hour', () => {
+  const emptyPlanState = clearTimelineEntry(state, 'dayPlans', 'ishida', '2026-08-05', 10);
+  const next = addPlanMinutes(
+    addPlanMinutes(emptyPlanState, 'ishida', '2026-08-05', 10, 'proposal', 30, 'first'),
+    'ishida',
+    '2026-08-05',
+    10,
+    'mail',
+    15,
+    'second'
+  );
+  const text = formatDailyScheduleText(next, 'dayPlans', 'ishida', '2026-08-05', 10, 11);
+
+  assert.equal(text, '10:00-11:00 10:00-10:30 Proposal (30\u5206)\uff1a\u300cfirst\u300d\u300110:30-10:45 Mail (15\u5206)\uff1a\u300csecond\u300d');
+});
+
 test('addActualMinutes allows multiple actual tasks inside one hour', () => {
   const next = addActualMinutes(state, 'ishida', '2026-08-05', 10, 'proposal', 40, 'first');
   const updated = addActualMinutes(next, 'ishida', '2026-08-05', 10, 'mail', 20, 'second');
@@ -153,7 +170,7 @@ test('addActualMinutes allows multiple actual tasks inside one hour', () => {
 test('formatDailyScheduleText uses the requested plan copy format', () => {
   const text = formatDailyScheduleText(state, 'dayPlans', 'ishida', '2026-08-05', 10, 12);
 
-  assert.equal(text, '10:00-11:00 Proposal：「for A」\n11:00-12:00 未入力：「」');
+  assert.equal(text, '10:00-11:00 10:00-11:00 Proposal (60\u5206)\uff1a\u300cfor A\u300d\n11:00-12:00 \u672a\u5165\u529b');
 });
 
 test('formatDailyScheduleText lists multiple actual items chronologically', () => {
@@ -168,7 +185,7 @@ test('formatDailyScheduleText lists multiple actual items chronologically', () =
   );
   const text = formatDailyScheduleText(multiState, 'dayActuals', 'ishida', '2026-08-05', 10, 11);
 
-  assert.equal(text, '10:00-11:00 10:00-10:40 Proposal (40分)、10:40-11:00 Mail (20分)');
+  assert.equal(text, '10:00-11:00 10:00-10:40 Proposal (40\u5206)\u300110:40-11:00 Mail (20\u5206)');
 });
 
 test('formatActualItemRanges accumulates actual items within and beyond one hour', () => {
@@ -188,7 +205,7 @@ test('formatDailyScheduleText keeps single-digit hours unpadded', () => {
   };
   const text = formatDailyScheduleText(nineState, 'dayPlans', 'ishida', '2026-08-05', 9, 10);
 
-  assert.equal(text, '9:00-10:00 Proposal：「memo」');
+  assert.equal(text, '9:00-10:00 9:00-10:00 Proposal (60\u5206)\uff1a\u300cmemo\u300d');
 });
 
 test('formatDailyCategorySummaryText groups daily actual minutes by project and task with counts', () => {
@@ -288,7 +305,7 @@ test('break actuals appear in timeline text but are excluded from review and cat
   const metrics = computeReviewMetrics(breakState, '2026-08-03', { userId: 'ishida' });
 
   assert.ok(timelineText.includes('Break'));
-  assert.equal(categoryText, '本日の入力はありません');
+  assert.equal(categoryText, '\u672c\u65e5\u306e\u5165\u529b\u306f\u3042\u308a\u307e\u305b\u3093');
   assert.equal(metrics.totalActualHours, 0);
   assert.deepEqual(metrics.natureHours, { core: 0, admin: 0, investment: 0 });
 });
@@ -327,3 +344,4 @@ test('break quick add is capped at sixty minutes per day', () => {
 
   assert.equal(totalBreakMinutes, 60);
 });
+

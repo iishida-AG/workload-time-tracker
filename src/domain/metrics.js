@@ -142,12 +142,7 @@ export function copyPlanToActuals(state, userId, date) {
 
   const copiedPlans = (state.dayPlans ?? [])
     .filter((entry) => (entry.userId ?? 'ishida') === userId && entry.date === date)
-    .map((entry) =>
-      makeActualEntry(
-        { userId, date: entry.date, hour: entry.hour },
-        [{ taskId: entry.taskId, note: entry.note ?? '', minutes: 60 }]
-      )
-    );
+    .map((entry) => makeActualEntry({ userId, date: entry.date, hour: entry.hour }, getActualItems(entry)));
 
   return {
     ...state,
@@ -161,20 +156,18 @@ export function copyPlanToActuals(state, userId, date) {
 export function copyPlanHourToActual(state, userId, date, hour) {
   const plan = (state.dayPlans ?? []).find((entry) => sameTimelineSlot(entry, userId, date, hour));
   const dayActuals = (state.dayActuals ?? []).filter((entry) => !sameTimelineSlot(entry, userId, date, hour));
-  if (!plan?.taskId) return { ...state, dayActuals };
+  const items = getActualItems(plan);
+  if (items.length === 0) return { ...state, dayActuals };
   return {
     ...state,
-    dayActuals: [
-      ...dayActuals,
-      makeActualEntry({ userId, date, hour }, [{ taskId: plan.taskId, note: plan.note ?? '', minutes: 60 }])
-    ]
+    dayActuals: [...dayActuals, makeActualEntry({ userId, date, hour }, items)]
   };
 }
 
-export function addActualMinutes(state, userId, date, hour, taskId, minutes, note = '') {
+function addMinutesToCollection(state, collectionName, userId, date, hour, taskId, minutes, note = '') {
   if (!taskId) return state;
   const tasks = taskById(state.tasks ?? []);
-  const isBreak = tasks.get(taskId)?.nature === 'break';
+  const isBreak = collectionName === 'dayActuals' && tasks.get(taskId)?.nature === 'break';
   const remainingBreakMinutes = isBreak
     ? Math.max(0, 60 - breakMinutesForDay(state.dayActuals ?? [], tasks, userId, date))
     : Infinity;
@@ -182,7 +175,7 @@ export function addActualMinutes(state, userId, date, hour, taskId, minutes, not
   if (cleanMinuteValue <= 0) return state;
 
   let found = false;
-  const dayActuals = (state.dayActuals ?? []).map((entry) => {
+  const entries = (state[collectionName] ?? []).map((entry) => {
     if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
     found = true;
     const items = getActualItems(entry);
@@ -199,14 +192,22 @@ export function addActualMinutes(state, userId, date, hour, taskId, minutes, not
   });
 
   if (!found) {
-    dayActuals.push(makeActualEntry({ userId, date, hour }, [{ taskId, note, minutes: cleanMinuteValue }]));
+    entries.push(makeActualEntry({ userId, date, hour }, [{ taskId, note, minutes: cleanMinuteValue }]));
   }
 
-  return { ...state, dayActuals };
+  return { ...state, [collectionName]: entries };
 }
 
-export function updateActualItem(state, userId, date, hour, index, patch) {
-  const dayActuals = (state.dayActuals ?? []).map((entry) => {
+export function addActualMinutes(state, userId, date, hour, taskId, minutes, note = '') {
+  return addMinutesToCollection(state, 'dayActuals', userId, date, hour, taskId, minutes, note);
+}
+
+export function addPlanMinutes(state, userId, date, hour, taskId, minutes, note = '') {
+  return addMinutesToCollection(state, 'dayPlans', userId, date, hour, taskId, minutes, note);
+}
+
+function updateTimelineItem(state, collectionName, userId, date, hour, index, patch) {
+  const entries = (state[collectionName] ?? []).map((entry) => {
     if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
     const items = getActualItems(entry).map((item, itemIndex) =>
       itemIndex === index
@@ -219,18 +220,34 @@ export function updateActualItem(state, userId, date, hour, index, patch) {
     );
     return makeActualEntry({ userId, date, hour }, items);
   });
-  return { ...state, dayActuals };
+  return { ...state, [collectionName]: entries };
 }
 
-export function removeActualItem(state, userId, date, hour, index) {
-  const dayActuals = (state.dayActuals ?? [])
+export function updateActualItem(state, userId, date, hour, index, patch) {
+  return updateTimelineItem(state, 'dayActuals', userId, date, hour, index, patch);
+}
+
+export function updatePlanItem(state, userId, date, hour, index, patch) {
+  return updateTimelineItem(state, 'dayPlans', userId, date, hour, index, patch);
+}
+
+function removeTimelineItem(state, collectionName, userId, date, hour, index) {
+  const entries = (state[collectionName] ?? [])
     .map((entry) => {
       if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
       const items = getActualItems(entry).filter((_, itemIndex) => itemIndex !== index);
       return makeActualEntry({ userId, date, hour }, items);
     })
     .filter((entry) => !sameTimelineSlot(entry, userId, date, hour) || getActualItems(entry).length > 0);
-  return { ...state, dayActuals };
+  return { ...state, [collectionName]: entries };
+}
+
+export function removeActualItem(state, userId, date, hour, index) {
+  return removeTimelineItem(state, 'dayActuals', userId, date, hour, index);
+}
+
+export function removePlanItem(state, userId, date, hour, index) {
+  return removeTimelineItem(state, 'dayPlans', userId, date, hour, index);
 }
 
 export function incrementDailyCount(state, date, taskId, delta, userId = 'ishida') {
@@ -252,7 +269,7 @@ export function setTimelineEntry(state, collectionName, userId, date, hour, task
   const entries = (state[collectionName] ?? []).filter((entry) => !sameTimelineSlot(entry, userId, date, hour));
   if (taskId) {
     entries.push(
-      collectionName === 'dayActuals'
+      collectionName === 'dayActuals' || collectionName === 'dayPlans'
         ? makeActualEntry({ userId, date, hour }, [{ taskId, note, minutes: 60 }])
         : { userId, date, hour, taskId, note }
     );
@@ -261,13 +278,19 @@ export function setTimelineEntry(state, collectionName, userId, date, hour, task
 }
 
 export function setTimelineNote(state, collectionName, userId, date, hour, note) {
+  if (collectionName === 'dayActuals' || collectionName === 'dayPlans') {
+    const entries = (state[collectionName] ?? []).map((entry) => {
+      if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
+      return makeActualEntry(
+        { userId, date, hour },
+        getActualItems(entry).map((item, index) => (index === 0 ? { ...item, note } : item))
+      );
+    });
+    return { ...state, [collectionName]: entries };
+  }
   const entries = (state[collectionName] ?? []).map((entry) => {
     if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
-    if (collectionName !== 'dayActuals') return { ...entry, note };
-    return makeActualEntry(
-      { userId, date, hour },
-      getActualItems(entry).map((item, index) => (index === 0 ? { ...item, note } : item))
-    );
+    return { ...entry, note };
   });
   return { ...state, [collectionName]: entries };
 }
@@ -280,27 +303,24 @@ export function clearTimelineEntry(state, collectionName, userId, date, hour) {
 }
 
 export function formatDailyScheduleText(state, collectionName, userId, date, startHour, endHour) {
+  const labels = { empty: '\u672a\u5165\u529b', unset: '\u672a\u8a2d\u5b9a', minute: '\u5206' };
   const tasks = taskById(state.tasks ?? []);
   return Array.from({ length: endHour - startHour }, (_, index) => startHour + index)
     .map((hour) => {
       const entry = (state[collectionName] ?? []).find((row) => sameTimelineSlot(row, userId, date, hour));
-      if (collectionName === 'dayActuals') {
-        const items = getActualItems(entry);
-        const ranges = formatActualItemRanges(hour, items);
-        const text =
-          items.length === 0
-            ? '未入力'
-            : items
-                .map((item, index) => {
-                  const taskName = tasks.get(item.taskId)?.name ?? '未設定';
-                  const note = item.note ? `：「${item.note}」` : '';
-                  return `${ranges[index]} ${taskName} (${item.minutes}分)${note}`;
-                })
-                .join('、');
-        return `${formatHour(hour)}-${formatHour(hour + 1)} ${text}`;
-      }
-      const taskName = entry ? tasks.get(entry.taskId)?.name ?? '未入力' : '未入力';
-      return `${formatHour(hour)}-${formatHour(hour + 1)} ${taskName}：「${entry?.note ?? ''}」`;
+      const items = getActualItems(entry);
+      const ranges = formatActualItemRanges(hour, items);
+      const text =
+        items.length === 0
+          ? labels.empty
+          : items
+              .map((item, index) => {
+                const taskName = tasks.get(item.taskId)?.name ?? labels.unset;
+                const note = item.note ? '\uff1a\u300c' + item.note + '\u300d' : '';
+                return ranges[index] + ' ' + taskName + ' (' + item.minutes + labels.minute + ')' + note;
+              })
+              .join('\u3001');
+      return formatHour(hour) + '-' + formatHour(hour + 1) + ' ' + text;
     })
     .join('\n');
 }
@@ -312,7 +332,7 @@ export function formatDailyCategorySummaryText(state, collectionName, userId, da
 
   for (const entry of (state[collectionName] ?? []).filter((row) => (row.userId ?? 'ishida') === userId && row.date === date)) {
     const items =
-      collectionName === 'dayActuals'
+      collectionName === 'dayActuals' || collectionName === 'dayPlans'
         ? getActualItems(entry)
         : entry.taskId
           ? [{ taskId: entry.taskId, note: entry.note ?? '', minutes: 60 }]

@@ -94,12 +94,12 @@ export function getTimelineSetting(state, userId, date) {
   const setting = (state.timelineSettings ?? []).find(
     (row) => row.userId === userId && row.date === date
   );
-  return { startHour: setting?.startHour ?? 9, endHour: setting?.endHour ?? 20 };
+  return { startHour: setting?.startHour ?? 10, endHour: setting?.endHour ?? 19 };
 }
 
 export function upsertTimelineSetting(state, userId, date, startHour, endHour) {
-  const cleanStart = Math.max(0, Math.min(23, sanitizeTimelineHour(startHour, 9)));
-  const cleanEnd = Math.max(cleanStart + 1, Math.min(24, sanitizeTimelineHour(endHour, 20)));
+  const cleanStart = Math.max(0, Math.min(23, sanitizeTimelineHour(startHour, 10)));
+  const cleanEnd = Math.max(cleanStart + 1, Math.min(24, sanitizeTimelineHour(endHour, 19)));
   const exists = (state.timelineSettings ?? []).some(
     (row) => row.userId === userId && row.date === date
   );
