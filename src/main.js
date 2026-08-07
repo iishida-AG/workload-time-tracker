@@ -1,5 +1,5 @@
-import { getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js?v=20260807-whitefix-v1';
-import { TASK_NATURES } from './domain/presets.js?v=20260807-whitefix-v1';
+import { getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
+import { TASK_NATURES } from './domain/presets.js';
 import {
   clearTimelineEntry,
   computeProjectCountSummaries,
@@ -17,12 +17,12 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260807-whitefix-v1';
-import { getUserLabel, USERS } from './domain/users.js?v=20260807-whitefix-v1';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260807-whitefix-v1';
-import { createStateAdapter } from './state/firebase-sync.js?v=20260807-whitefix-v1';
-import { firebaseConfig } from './firebase-config.js?v=20260807-whitefix-v1';
-import { createAuthController } from './state/auth.js?v=20260807-whitefix-v1';
+} from './domain/metrics.js';
+import { getUserLabel, USERS } from './domain/users.js';
+import { createDashboardViewModel } from './ui/view-model.js';
+import { createStateAdapter } from './state/firebase-sync.js';
+import { firebaseConfig } from './firebase-config.js';
+import { createAuthController } from './state/auth.js';
 import {
   addProject,
   addTask,
@@ -39,7 +39,7 @@ import {
   upsertReview,
   upsertTimelineSetting,
   upsertWeeklyProjectGoal
-} from './state/store.js?v=20260807-whitefix-v1';
+} from './state/store.js';
 
 const natureLabels = Object.fromEntries(TASK_NATURES.map((nature) => [nature.id, nature.label]));
 const displayUserLabels = {

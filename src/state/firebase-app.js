@@ -1,4 +1,4 @@
-import { importFirebaseAppModule } from './firebase-modules.js?v=20260807-whitefix-v1';
+import { importFirebaseAppModule } from './firebase-modules.js';
 
 export async function getFirebaseApp(firebaseConfig) {
   const { getApp, getApps, initializeApp } = await importFirebaseAppModule();

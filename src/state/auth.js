@@ -1,6 +1,6 @@
-import { hasFirebaseConfig } from './firebase-sync.js?v=20260807-whitefix-v1';
-import { getFirebaseApp } from './firebase-app.js?v=20260807-whitefix-v1';
-import { importFirebaseAuthModule } from './firebase-modules.js?v=20260807-whitefix-v1';
+import { hasFirebaseConfig } from './firebase-sync.js';
+import { getFirebaseApp } from './firebase-app.js';
+import { importFirebaseAuthModule } from './firebase-modules.js';
 
 export function authIsRequired(firebaseConfig) {
   return hasFirebaseConfig(firebaseConfig);
