@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Workload Time Tracker</title>
-    <link rel="stylesheet" href="./src/styles.css?v=20260807-whitefix-v1" />
+    <link rel="stylesheet" href="./src/styles.css?v=20260807-authfix-v2" />
   </head>
   <body>
     <div id="root">
@@ -12,6 +12,18 @@
         <section class="panel">Loading...</section>
       </div>
     </div>
-    <script type="module" src="./src/main.js?v=20260807-whitefix-v1"></script>
+    <script>
+      window.addEventListener('error', function (event) {
+        var root = document.getElementById('root');
+        if (!root) return;
+        root.innerHTML = '<div class="app-shell"><section class="panel"><strong>アプリの起動に失敗しました</strong><p>' + String(event.message || 'JavaScript error') + '</p></section></div>';
+      });
+      setTimeout(function () {
+        var root = document.getElementById('root');
+        if (!root || !/Loading/.test(root.innerText || '')) return;
+        root.innerHTML = '<div class="app-shell"><section class="panel"><strong>読み込みに時間がかかっています</strong><p>ページを再読み込みしてください。続く場合は、ブラウザのキャッシュが古い可能性があります。</p></section></div>';
+      }, 12000);
+    </script>
+    <script type="module" src="./src/main.js?v=20260807-authfix-v2"></script>
   </body>
 </html>

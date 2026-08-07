@@ -22,7 +22,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js';
+import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
 import {
   addProject,
   addTask,
