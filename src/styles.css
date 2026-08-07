@@ -574,6 +574,10 @@ main {
   min-width: 0;
 }
 
+.plan-entry {
+  grid-template-columns: 30px minmax(96px, 120px) minmax(0, 1fr);
+}
+
 .actual-entry .timeline-cell {
   grid-template-columns: 1fr;
 }
@@ -590,6 +594,10 @@ main {
   gap: 4px;
   align-items: center;
   min-width: 0;
+}
+
+.plan-entry .actual-item-row {
+  grid-template-columns: minmax(72px, 82px) minmax(76px, 0.8fr) 48px 16px minmax(160px, 1fr) 28px;
 }
 
 .actual-item-range {
