@@ -575,7 +575,7 @@ main {
 }
 
 .plan-entry {
-  grid-template-columns: 30px minmax(96px, 120px) minmax(0, 1fr);
+  grid-template-columns: 30px minmax(104px, 118px) minmax(0, 1fr);
 }
 
 .actual-entry .timeline-cell {
@@ -597,7 +597,11 @@ main {
 }
 
 .plan-entry .actual-item-row {
-  grid-template-columns: minmax(72px, 82px) minmax(76px, 0.8fr) 48px 16px minmax(160px, 1fr) 28px;
+  grid-template-columns: minmax(74px, 0.8fr) 48px 16px minmax(96px, 1.2fr) 28px;
+}
+
+.plan-entry .actual-item-range {
+  display: none;
 }
 
 .actual-item-range {
