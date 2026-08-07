@@ -590,7 +590,7 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: minmax(74px, 88px) minmax(64px, 0.8fr) 48px 16px minmax(80px, 1fr) 28px;
+  grid-template-columns: minmax(74px, 0.8fr) 48px 16px minmax(96px, 1.2fr) 28px;
   gap: 4px;
   align-items: center;
   min-width: 0;
@@ -600,15 +600,8 @@ main {
   grid-template-columns: minmax(74px, 0.8fr) 48px 16px minmax(96px, 1.2fr) 28px;
 }
 
-.plan-entry .actual-item-range {
-  display: none;
-}
-
 .actual-item-range {
-  color: #2364d2;
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
+  display: none;
 }
 
 .actual-item-task {
