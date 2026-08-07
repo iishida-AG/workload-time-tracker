@@ -1,4 +1,4 @@
-import { getWeekStart } from '../domain/calendar.js';
+import { getWeekStart } from '../domain/calendar.js?v=20260807-whitefix-v1';
 import {
   computeReviewMetrics,
   formatActualItemRanges,
@@ -6,9 +6,9 @@ import {
   formatDailyScheduleText,
   getActualItems,
   getImprovementPromiseForWeek
-} from '../domain/metrics.js';
-import { getPartnerUserId } from '../domain/users.js';
-import { getTimelineSetting } from '../state/store.js';
+} from '../domain/metrics.js?v=20260807-whitefix-v1';
+import { getPartnerUserId } from '../domain/users.js?v=20260807-whitefix-v1';
+import { getTimelineSetting } from '../state/store.js?v=20260807-whitefix-v1';
 
 const labels = {
   unentered: '\u672a\u5165\u529b',

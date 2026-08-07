@@ -1,7 +1,7 @@
-import { createAppState, normalizeState } from './store.js';
-import { loadState, saveState } from './storage.js';
-import { getFirebaseApp } from './firebase-app.js';
-import { importFirebaseFirestoreModule } from './firebase-modules.js';
+import { createAppState, normalizeState } from './store.js?v=20260807-whitefix-v1';
+import { loadState, saveState } from './storage.js?v=20260807-whitefix-v1';
+import { getFirebaseApp } from './firebase-app.js?v=20260807-whitefix-v1';
+import { importFirebaseFirestoreModule } from './firebase-modules.js?v=20260807-whitefix-v1';
 
 export function hasFirebaseConfig(config) {
   const requiredValues = [config?.apiKey, config?.projectId, config?.appId].map((value) => String(value ?? '').trim());
