@@ -45,11 +45,27 @@ function createFirebaseAuthController(firebaseConfig) {
     return authPromise;
   }
 
+  function withTimeout(promise, milliseconds, message) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error(message)), milliseconds);
+      })
+    ]);
+  }
+
   return {
     mode: 'firebase-auth',
     async subscribe(callback) {
       callback({ status: 'loading', user: null, error: '' });
-      const { auth, instance } = await getAuthApi();
+      let authApi;
+      try {
+        authApi = await withTimeout(getAuthApi(), 8000, 'Firebase Authの読み込みがタイムアウトしました');
+      } catch (error) {
+        callback({ status: 'signed-out', user: null, error: '認証を開始できませんでした。しばらく待って再読み込みしてください。' });
+        throw error;
+      }
+      const { auth, instance } = authApi;
       return auth.onAuthStateChanged(
         instance,
         (user) => callback({ status: user ? 'signed-in' : 'signed-out', user, error: '' }),

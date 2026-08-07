@@ -1,4 +1,4 @@
-const FIREBASE_VERSION = '12.17.1';
+const FIREBASE_VERSION = '10.12.5';
 const FIREBASE_CDN_BASE = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
 
 export const firebaseModuleSpecifiers = {
