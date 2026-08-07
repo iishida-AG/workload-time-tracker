@@ -1501,6 +1501,10 @@ function handleInput(event) {
   );
 }
 
+function handleCompositionEnd(event) {
+  handleInput({ target: event.target, isComposing: false });
+}
+
 function handleSubmit(event) {
   const form = event.target.closest('form[data-form]');
   if (!form) return;
