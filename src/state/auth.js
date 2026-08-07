@@ -25,12 +25,12 @@ function createLocalAuthController() {
 function mapAuthError(error) {
   const code = String(error?.code ?? '');
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
-    return 'メールアドレスまたはパスワードが違います';
+    return '\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u307e\u305f\u306f\u30d1\u30b9\u30ef\u30fc\u30c9\u304c\u9055\u3044\u307e\u3059';
   }
   if (code.includes('too-many-requests')) {
-    return 'ログイン試行が多すぎます。少し時間をおいてください';
+    return '\u30ed\u30b0\u30a4\u30f3\u8a66\u884c\u304c\u591a\u3059\u304e\u307e\u3059\u3002\u5c11\u3057\u6642\u9593\u3092\u304a\u3044\u3066\u304f\u3060\u3055\u3044';
   }
-  return 'ログインに失敗しました';
+  return '\u30ed\u30b0\u30a4\u30f3\u306b\u5931\u6557\u3057\u307e\u3057\u305f';
 }
 
 function createFirebaseAuthController(firebaseConfig) {
@@ -60,16 +60,20 @@ function createFirebaseAuthController(firebaseConfig) {
       callback({ status: 'loading', user: null, error: '' });
       let authApi;
       try {
-        authApi = await withTimeout(getAuthApi(), 8000, 'Firebase Authの読み込みがタイムアウトしました');
+        authApi = await withTimeout(getAuthApi(), 8000, 'Firebase Auth loading timed out');
       } catch (error) {
-        callback({ status: 'signed-out', user: null, error: '認証を開始できませんでした。しばらく待って再読み込みしてください。' });
+        callback({
+          status: 'signed-out',
+          user: null,
+          error: '\u8a8d\u8a3c\u3092\u958b\u59cb\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u3057\u3070\u3089\u304f\u5f85\u3063\u3066\u518d\u8aad\u307f\u8fbc\u307f\u3057\u3066\u304f\u3060\u3055\u3044\u3002'
+        });
         throw error;
       }
       const { auth, instance } = authApi;
       return auth.onAuthStateChanged(
         instance,
         (user) => callback({ status: user ? 'signed-in' : 'signed-out', user, error: '' }),
-        () => callback({ status: 'signed-out', user: null, error: '認証状態を確認できませんでした' })
+        () => callback({ status: 'signed-out', user: null, error: '\u8a8d\u8a3c\u72b6\u614b\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f' })
       );
     },
     async login(email, password) {
