@@ -497,7 +497,6 @@ function renderHeader(view) {
       </div>
       <div class="header-actions">
         ${renderUserSwitcher(view)}
-        ${renderShareLinks()}
         ${renderAccountMenu()}
         <nav class="tab-nav" aria-label="画面切り替え">
           ${tabs
