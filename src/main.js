@@ -8,7 +8,6 @@ import {
   copyPlanHourToActual,
   addActualMinutes,
   addPlanMinutes,
-  formatActualItemRanges,
   getActualItems,
   incrementDailyCount,
   removeActualItem,
@@ -17,9 +16,9 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js';
+} from './domain/metrics.js?v=20260810-reportformat-v1';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260810-reportformat-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
@@ -590,7 +589,6 @@ function renderTimelineItemRows(entry, hour, collectionName) {
   if (items.length === 0) {
     return '<div class="actual-item-empty">\u672a\u5165\u529b</div>';
   }
-  const ranges = formatActualItemRanges(hour, items);
   return `
     <div class="actual-item-list">
       ${items
@@ -598,7 +596,6 @@ function renderTimelineItemRows(entry, hour, collectionName) {
           const task = taskById(item.taskId);
           return `
             <div class="actual-item-row">
-              <span class="actual-item-range">${escapeHtml(ranges[index])}</span>
               <span class="actual-item-task">${escapeHtml(task?.name ?? '\u672a\u8a2d\u5b9a')}</span>
               <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="timeline-item-minutes" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" />
               <span class="actual-minute-label">\u5206</span>

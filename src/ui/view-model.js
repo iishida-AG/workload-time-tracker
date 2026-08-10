@@ -1,12 +1,10 @@
 import { getWeekStart } from '../domain/calendar.js';
 import {
   computeReviewMetrics,
-  formatActualItemRanges,
   formatDailyCategorySummaryText,
   formatDailyScheduleText,
-  getActualItems,
   getImprovementPromiseForWeek
-} from '../domain/metrics.js';
+} from '../domain/metrics.js?v=20260810-reportformat-v1';
 import { getPartnerUserId } from '../domain/users.js';
 import { getTimelineSetting } from '../state/store.js';
 
@@ -43,35 +41,15 @@ function formatPercent(value) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
-function formatJapaneseClock(rangePart) {
-  const [hour, minute] = rangePart.split(':');
-  return `${Number(hour)}${labels.hour}${String(minute).padStart(2, '0')}${labels.minute}`;
-}
-
-function formatJapaneseRange(range) {
-  const [start, end] = range.split('-');
-  return `${formatJapaneseClock(start)}${labels.range}${formatJapaneseClock(end)}`;
-}
-
 function formatDailyReportSchedule(state, userId, date, timelineSetting) {
-  const tasks = new Map((state.tasks ?? []).map((task) => [task.id, task]));
-  return Array.from({ length: timelineSetting.endHour - timelineSetting.startHour }, (_, index) => timelineSetting.startHour + index)
-    .flatMap((hour) => {
-      const entry = (state.dayActuals ?? []).find(
-        (row) => (row.userId ?? 'ishida') === userId && row.date === date && row.hour === hour
-      );
-      const items = getActualItems(entry);
-      if (items.length === 0) {
-        return [`${hour}${labels.hour}00${labels.minute}${labels.range}${hour + 1}${labels.hour}00${labels.minute}${labels.space}${labels.unentered}`];
-      }
-      const ranges = formatActualItemRanges(hour, items);
-      return items.map((item, itemIndex) => {
-        const taskName = tasks.get(item.taskId)?.name ?? labels.unset;
-        const text = item.note?.trim() || taskName;
-        return `${formatJapaneseRange(ranges[itemIndex])}${labels.space}${text}`;
-      });
-    })
-    .join('\n');
+  return formatDailyScheduleText(
+    state,
+    'dayActuals',
+    userId,
+    date,
+    timelineSetting.startHour,
+    timelineSetting.endHour
+  );
 }
 
 function buildIshidaDailyReport(scheduleText) {

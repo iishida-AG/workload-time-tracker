@@ -10,8 +10,8 @@ const jp = {
   business: '\u25a0\u4eca\u65e5\u306e\u696d\u52d9\u5185\u5bb9',
   quant: '\u25a0\u4eca\u65e5\u306e\u5b9a\u91cf\u76ee\u6a19\u9054\u6210\u7387\n\n\u25a0\u660e\u65e5\u306e\u5b9a\u91cf\u76ee\u6a19',
   tanoueLead: '\u4e0b\u8a18\u3001\u672c\u65e5\u306e\u65e5\u5831\u3067\u3054\u3056\u3044\u307e\u3059\u3002',
-  unentered11: '11\u664200\u5206\uff5e12\u664200\u5206\u3000\u672a\u5165\u529b',
-  unentered12: '12\u664200\u5206\uff5e13\u664200\u5206\u3000\u672a\u5165\u529b'
+  firstLine: '10\u664200\u5206-11\u664200\u5206 Proposal',
+  memoLine: '11\u664200\u5206-11\u664215\u5206 memo'
 };
 
 function test(name, fn) {
@@ -68,10 +68,9 @@ test('createDashboardViewModel outputs Ishida daily report with minute range lin
   const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
   assert.ok(view.actualCopyText.startsWith(jp.otsu));
   assert.ok(view.actualCopyText.includes(jp.todayGoal + '\n\n'));
-  assert.ok(view.actualCopyText.includes('10\u664200\u5206\uff5e11\u664200\u5206\u3000Proposal'));
-  assert.ok(view.actualCopyText.includes('11\u664200\u5206\uff5e11\u664215\u5206\u3000memo'));
-  assert.ok(view.actualCopyText.includes(jp.unentered11));
-  assert.ok(view.actualCopyText.includes(jp.unentered12));
+  assert.ok(view.actualCopyText.includes(jp.firstLine));
+  assert.ok(view.actualCopyText.includes(jp.memoLine));
+  assert.equal(view.actualCopyText.includes('\u672a\u5165\u529b'), false);
   assert.ok(view.actualCopyText.includes(jp.goodIssueTomorrow));
 });
 
@@ -79,8 +78,8 @@ test('createDashboardViewModel outputs Tanoue daily report with business section
   const state = { ...baseState(), timelineSettings: [{ userId: 'tanoue', date: '2026-08-05', startHour: 10, endHour: 12 }], dayActuals: [{ userId: 'tanoue', date: '2026-08-05', hour: 10, taskId: 't1', note: 'reviewed' }] };
   const view = createDashboardViewModel(state, '2026-08-05', 'tanoue');
   assert.ok(view.actualCopyText.includes(jp.tanoueLead));
-  assert.ok(view.actualCopyText.includes(jp.business + '\n10\u664200\u5206\uff5e11\u664200\u5206\u3000reviewed'));
-  assert.ok(view.actualCopyText.includes(jp.unentered11));
+  assert.ok(view.actualCopyText.includes(jp.business + '\n10\u664200\u5206-11\u664200\u5206 reviewed'));
+  assert.equal(view.actualCopyText.includes('\u672a\u5165\u529b'), false);
   assert.ok(view.actualCopyText.includes(jp.quant));
 });
 

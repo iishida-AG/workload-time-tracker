@@ -108,6 +108,15 @@ function formatMinuteClock(totalMinutes) {
   return `${hour}:${String(minute).padStart(2, '0')}`;
 }
 
+function formatJapaneseClock(rangePart) {
+  const [hour, minute] = rangePart.split(':');
+  return `${Number(hour)}\u6642${String(minute).padStart(2, '0')}\u5206`;
+}
+
+function formatJapaneseScheduleRange(start, end) {
+  return `${formatJapaneseClock(start)}-${formatJapaneseClock(end)}`;
+}
+
 export function formatActualItemRanges(hour, items) {
   let cursor = hour * 60;
   return items.map((item) => {
@@ -303,25 +312,29 @@ export function clearTimelineEntry(state, collectionName, userId, date, hour) {
 }
 
 export function formatDailyScheduleText(state, collectionName, userId, date, startHour, endHour) {
-  const labels = { empty: '\u672a\u5165\u529b', unset: '\u672a\u8a2d\u5b9a', minute: '\u5206' };
+  const labels = { unset: '\u672a\u8a2d\u5b9a' };
   const tasks = taskById(state.tasks ?? []);
-  return Array.from({ length: endHour - startHour }, (_, index) => startHour + index)
-    .map((hour) => {
-      const entry = (state[collectionName] ?? []).find((row) => sameTimelineSlot(row, userId, date, hour));
-      const items = getActualItems(entry);
-      const ranges = formatActualItemRanges(hour, items);
-      const text =
-        items.length === 0
-          ? labels.empty
-          : items
-              .map((item, index) => {
-                const taskName = tasks.get(item.taskId)?.name ?? labels.unset;
-                const note = item.note ? '\uff1a\u300c' + item.note + '\u300d' : '';
-                return ranges[index] + ' ' + taskName + ' (' + item.minutes + labels.minute + ')' + note;
-              })
-              .join('\u3001');
-      return formatHour(hour) + '-' + formatHour(hour + 1) + ' ' + text;
-    })
+  const segments = [];
+
+  for (let hour = startHour; hour < endHour; hour += 1) {
+    const entry = (state[collectionName] ?? []).find((row) => sameTimelineSlot(row, userId, date, hour));
+    const items = getActualItems(entry);
+    const ranges = formatActualItemRanges(hour, items);
+
+    items.forEach((item, index) => {
+      const [start, end] = ranges[index].split('-');
+      const text = item.note?.trim() || tasks.get(item.taskId)?.name || labels.unset;
+      const previous = segments.at(-1);
+      if (previous && previous.text === text && previous.end === start) {
+        previous.end = end;
+      } else {
+        segments.push({ start, end, text });
+      }
+    });
+  }
+
+  return segments
+    .map((segment) => `${formatJapaneseScheduleRange(segment.start, segment.end)} ${segment.text}`)
     .join('\n');
 }
 

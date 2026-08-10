@@ -150,7 +150,7 @@ test('addPlanMinutes allows multiple planned tasks inside one hour', () => {
   );
   const text = formatDailyScheduleText(next, 'dayPlans', 'ishida', '2026-08-05', 10, 11);
 
-  assert.equal(text, '10:00-11:00 10:00-10:30 Proposal (30\u5206)\uff1a\u300cfirst\u300d\u300110:30-10:45 Mail (15\u5206)\uff1a\u300csecond\u300d');
+  assert.equal(text, '10\u664200\u5206-10\u664230\u5206 first\n10\u664230\u5206-10\u664245\u5206 second');
 });
 
 test('addActualMinutes allows multiple actual tasks inside one hour', () => {
@@ -170,7 +170,7 @@ test('addActualMinutes allows multiple actual tasks inside one hour', () => {
 test('formatDailyScheduleText uses the requested plan copy format', () => {
   const text = formatDailyScheduleText(state, 'dayPlans', 'ishida', '2026-08-05', 10, 12);
 
-  assert.equal(text, '10:00-11:00 10:00-11:00 Proposal (60\u5206)\uff1a\u300cfor A\u300d\n11:00-12:00 \u672a\u5165\u529b');
+  assert.equal(text, '10\u664200\u5206-11\u664200\u5206 for A');
 });
 
 test('formatDailyScheduleText lists multiple actual items chronologically', () => {
@@ -185,7 +185,7 @@ test('formatDailyScheduleText lists multiple actual items chronologically', () =
   );
   const text = formatDailyScheduleText(multiState, 'dayActuals', 'ishida', '2026-08-05', 10, 11);
 
-  assert.equal(text, '10:00-11:00 10:00-10:40 Proposal (40\u5206)\u300110:40-11:00 Mail (20\u5206)');
+  assert.equal(text, '10\u664200\u5206-10\u664240\u5206 Proposal\n10\u664240\u5206-11\u664200\u5206 Mail');
 });
 
 test('formatActualItemRanges accumulates actual items within and beyond one hour', () => {
@@ -205,7 +205,20 @@ test('formatDailyScheduleText keeps single-digit hours unpadded', () => {
   };
   const text = formatDailyScheduleText(nineState, 'dayPlans', 'ishida', '2026-08-05', 9, 10);
 
-  assert.equal(text, '9:00-10:00 9:00-10:00 Proposal (60\u5206)\uff1a\u300cmemo\u300d');
+  assert.equal(text, '9\u664200\u5206-10\u664200\u5206 memo');
+});
+
+test('formatDailyScheduleText merges adjacent rows with the same visible text', () => {
+  const mergedState = {
+    ...state,
+    dayPlans: [
+      { userId: 'ishida', date: '2026-08-05', hour: 11, taskId: 'proposal', items: [{ taskId: 'proposal', note: 'AI agent', minutes: 60 }] },
+      { userId: 'ishida', date: '2026-08-05', hour: 12, taskId: 'proposal', items: [{ taskId: 'proposal', note: 'AI agent', minutes: 60 }] }
+    ]
+  };
+  const text = formatDailyScheduleText(mergedState, 'dayPlans', 'ishida', '2026-08-05', 11, 13);
+
+  assert.equal(text, '11\u664200\u5206-13\u664200\u5206 AI agent');
 });
 
 test('formatDailyCategorySummaryText groups daily actual minutes by project and task with counts', () => {
