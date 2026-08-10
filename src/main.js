@@ -63,6 +63,7 @@ let unsubscribeState = null;
 let unsubscribeAuth = null;
 let suppressedAdapterRenderCount = 0;
 
+const EXPENSES_URL = 'https://ishida-ai-tool-dev.web.app/expenses';
 const validUserIds = new Set(USERS.map((user) => user.id));
 
 export function getUserIdFromUrl(url, fallbackUserId = 'ishida') {
@@ -152,7 +153,8 @@ function icon(name) {
     arrowUp: '<path d="m18 15-6-6-6 6"/>',
     arrowDown: '<path d="m6 9 6 6 6-6"/>',
     trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/>',
-    message: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/>'
+    message: '<path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4Z"/>',
+    wallet: '<path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/><path d="M3 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-5a3 3 0 0 1 0-6h7"/><path d="M16 14h.01"/>'
   };
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name] ?? paths.target}</svg>`;
 }
@@ -507,6 +509,9 @@ function renderHeader(view) {
               `
             )
             .join('')}
+          <a class="tab-button external-tab-link" href="${EXPENSES_URL}" target="_blank" rel="noopener noreferrer">
+            ${icon('wallet')}<span>経費</span>
+          </a>
         </nav>
       </div>
     </header>
