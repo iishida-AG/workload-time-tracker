@@ -65,9 +65,22 @@ export function normalizeState(state, defaultUserId = 'ishida') {
       userId: goal.userId ?? defaultUserId,
       ...goal
     })),
+    weeklyGoals: (state.weeklyGoals ?? []).map((goal) => ({
+      userId: goal.userId ?? defaultUserId,
+      ...goal
+    })),
     monthlyProjectGoals: (state.monthlyProjectGoals ?? []).map((goal) => ({
       userId: goal.userId ?? defaultUserId,
       ...goal
+    })),
+    monthlyTaskTargets: (state.monthlyTaskTargets ?? []).map((target) => ({
+      userId: target.userId ?? defaultUserId,
+      ...target
+    })),
+    projectGoalVisibility: (state.projectGoalVisibility ?? []).map((row) => ({
+      userId: row.userId ?? defaultUserId,
+      visible: row.visible !== false,
+      ...row
     })),
     dayPlans: (state.dayPlans ?? []).map((entry) => ({
       userId: entry.userId ?? defaultUserId,
@@ -206,6 +219,37 @@ export function upsertMonthlyProjectGoal(state, userId, month, projectId, goalTe
           item.userId === userId && item.month === month && item.projectId === projectId ? row : item
         )
       : [...(state.monthlyProjectGoals ?? []), row]
+  };
+}
+
+export function upsertMonthlyTaskTarget(state, userId, month, taskId, targetCount) {
+  const normalizedTarget = Math.max(0, Number(targetCount) || 0);
+  const exists = (state.monthlyTaskTargets ?? []).some(
+    (row) => row.userId === userId && row.month === month && row.taskId === taskId
+  );
+  const row = { userId, month, taskId, targetCount: normalizedTarget };
+  return {
+    ...state,
+    monthlyTaskTargets: exists
+      ? state.monthlyTaskTargets.map((item) =>
+          item.userId === userId && item.month === month && item.taskId === taskId ? row : item
+        )
+      : [...(state.monthlyTaskTargets ?? []), row]
+  };
+}
+
+export function upsertProjectGoalVisibility(state, userId, projectId, visible) {
+  const exists = (state.projectGoalVisibility ?? []).some(
+    (row) => row.userId === userId && row.projectId === projectId
+  );
+  const row = { userId, projectId, visible: Boolean(visible) };
+  return {
+    ...state,
+    projectGoalVisibility: exists
+      ? state.projectGoalVisibility.map((item) =>
+          item.userId === userId && item.projectId === projectId ? row : item
+        )
+      : [...(state.projectGoalVisibility ?? []), row]
   };
 }
 
@@ -359,19 +403,35 @@ export function deleteProject(state, projectId) {
   };
 }
 
-export function upsertWeeklyGoal(state, weekStart, taskId, targetCount) {
+export function upsertWeeklyGoal(state, weekStart, taskId, targetCount, userId = 'ishida') {
   const normalizedTarget = Math.max(0, Number(targetCount) || 0);
-  const exists = state.weeklyGoals.some(
-    (goal) => goal.weekStart === weekStart && goal.taskId === taskId
+  const exists = (state.weeklyGoals ?? []).some(
+    (goal) => (goal.userId ?? 'ishida') === userId && goal.weekStart === weekStart && goal.taskId === taskId
   );
   const weeklyGoals = exists
-    ? state.weeklyGoals.map((goal) =>
-        goal.weekStart === weekStart && goal.taskId === taskId
-          ? { ...goal, targetCount: normalizedTarget }
+    ? (state.weeklyGoals ?? []).map((goal) =>
+        (goal.userId ?? 'ishida') === userId && goal.weekStart === weekStart && goal.taskId === taskId
+          ? { ...goal, userId, targetCount: normalizedTarget }
           : goal
       )
-    : [...state.weeklyGoals, { weekStart, taskId, targetCount: normalizedTarget }];
+    : [...(state.weeklyGoals ?? []), { userId, weekStart, taskId, targetCount: normalizedTarget }];
   return { ...state, weeklyGoals };
+}
+
+export function setDailyCount(state, userId, date, taskId, count) {
+  const normalizedCount = Math.max(0, Number(count) || 0);
+  const exists = (state.dailyCounts ?? []).some(
+    (row) => (row.userId ?? 'ishida') === userId && row.date === date && row.taskId === taskId
+  );
+  const row = { userId, date, taskId, count: normalizedCount };
+  return {
+    ...state,
+    dailyCounts: exists
+      ? state.dailyCounts.map((item) =>
+          (item.userId ?? 'ishida') === userId && item.date === date && item.taskId === taskId ? row : item
+        )
+      : [...(state.dailyCounts ?? []), row]
+  };
 }
 
 export function upsertReview(state, weekStart, patch) {

@@ -668,7 +668,7 @@ main {
 
 .plan-prompt-controls {
   display: grid;
-  grid-template-columns: auto auto minmax(150px, 1fr) auto auto auto 32px;
+  grid-template-columns: auto auto auto auto auto minmax(160px, 1fr) 32px;
   gap: 6px;
   align-items: center;
 }
@@ -690,6 +690,12 @@ main {
 
 .plan-prompt-controls input[type="number"] {
   width: 56px;
+}
+
+.plan-prompt-controls input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  padding: 0 8px;
 }
 
 .actual-minutes-input,
@@ -1116,6 +1122,72 @@ main {
   font-size: 12px;
 }
 
+.target-input-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.target-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 72px auto;
+  gap: 8px;
+  align-items: center;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.target-input-row input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.target-input-row em {
+  color: #667085;
+  font-style: normal;
+}
+
+.project-visibility-controls {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fbfcff;
+}
+
+.project-visibility-controls > span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.project-visibility-controls div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.project-visibility-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.project-visibility-controls input {
+  width: 16px;
+  height: 16px;
+}
+
 .project-goal-heading {
   margin-bottom: 0;
   padding: 0 2px;
@@ -1213,7 +1285,7 @@ main {
 
 .project-count-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(158px, auto);
   gap: 10px;
   align-items: center;
   padding: 10px 0;
@@ -1236,6 +1308,37 @@ main {
   color: #344054;
   font-size: 12px;
   font-weight: 800;
+}
+
+.project-count-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.weekly-count-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, 74px);
+  gap: 6px;
+  align-items: end;
+}
+
+.weekly-count-inputs label {
+  display: grid;
+  gap: 4px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.weekly-count-inputs input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
 }
 
 .empty-state.compact {

@@ -1,4 +1,4 @@
-import { addDays, getMonthDates, getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
+import { addDays, getMonthDates, getTimelineHours, getWeekDates, getWeekStart, toDateKey } from './domain/calendar.js';
 import { TASK_NATURES } from './domain/presets.js';
 import {
   clearTimelineEntry,
@@ -34,12 +34,16 @@ import {
   hideTask,
   moveProjectOrder,
   moveTaskOrder,
+  setDailyCount,
   updateProject,
   updateTask,
   toggleWeeklyTodoItem,
   upsertMonthlyProjectGoal,
+  upsertMonthlyTaskTarget,
+  upsertProjectGoalVisibility,
   upsertReview,
   upsertTimelineSetting,
+  upsertWeeklyGoal,
   upsertWeeklyTodo,
   upsertWeeklyProjectGoal
 } from './state/store.js';
@@ -80,6 +84,8 @@ const shortcutVisibilityLabels = {
   ishida: '石田',
   tanoue: '田上'
 };
+
+const fixedMonthlyProjectIds = ['ses-sales', 'telecom-sales', 'internal-hiring', 'recruiting-sales'];
 
 export function getUserIdFromUrl(url, fallbackUserId = 'ishida') {
   try {
@@ -194,6 +200,44 @@ function todayKey() {
 
 function activeProjects() {
   return state.projects.filter((project) => project.status === 'active').sort((a, b) => a.order - b.order);
+}
+
+function monthlyGoalProjects() {
+  const byId = new Map(state.projects.map((project) => [project.id, project]));
+  return fixedMonthlyProjectIds
+    .map((projectId) => byId.get(projectId))
+    .filter(Boolean)
+    .filter((project) => project.status !== 'deleted');
+}
+
+function projectGoalVisible(projectId, userId = activeUserId) {
+  return (
+    (state.projectGoalVisibility ?? []).find(
+      (row) => (row.userId ?? 'ishida') === userId && row.projectId === projectId
+    )?.visible ?? true
+  );
+}
+
+function renderProjectGoalVisibilityControls() {
+  return `
+    <div class="project-visibility-controls">
+      <span>表示する大分類</span>
+      <div>
+        ${state.projects
+          .filter((project) => project.status !== 'deleted')
+          .sort((a, b) => a.order - b.order)
+          .map(
+            (project) => `
+              <label>
+                <input type="checkbox" data-field="project-goal-visible" data-project-id="${escapeHtml(project.id)}" ${projectGoalVisible(project.id) ? 'checked' : ''} />
+                <span>${escapeHtml(project.name)}</span>
+              </label>
+            `
+          )
+          .join('')}
+      </div>
+    </div>
+  `;
 }
 
 function displayUserLabel(userId) {
@@ -366,7 +410,11 @@ function weeklyCountFor(taskId, userId = activeUserId) {
 }
 
 function weeklyTargetFor(taskId) {
-  return state.weeklyGoals.find((goal) => goal.weekStart === weekStart() && goal.taskId === taskId)?.targetCount ?? null;
+  return (
+    state.weeklyGoals.find(
+      (goal) => (goal.userId ?? 'ishida') === activeUserId && goal.weekStart === weekStart() && goal.taskId === taskId
+    )?.targetCount ?? null
+  );
 }
 
 function renderReminderStrip(view) {
@@ -943,6 +991,14 @@ function targetCountFromText(goalText, taskName) {
   return 0;
 }
 
+function monthlyTaskTargetFor(userId, month, taskId) {
+  return (
+    (state.monthlyTaskTargets ?? []).find(
+      (target) => (target.userId ?? 'ishida') === userId && target.month === month && target.taskId === taskId
+    )?.targetCount ?? 0
+  );
+}
+
 function monthlyTaskProgressRows(userId, month, projectId) {
   const monthDates = new Set(getMonthDates(month));
   const weekStarts = new Set(monthWeekStarts(month));
@@ -960,14 +1016,11 @@ function monthlyTaskProgressRows(userId, month, projectId) {
             monthDates.has(row.date)
         )
         .reduce((sum, row) => sum + row.count, 0);
-      const targetCount = (state.weeklyProjectGoals ?? [])
-        .filter(
-          (goal) =>
-            (goal.userId ?? 'ishida') === userId &&
-            goal.projectId === projectId &&
-            weekStarts.has(goal.weekStart)
-        )
+      const storedTarget = monthlyTaskTargetFor(userId, month, task.id);
+      const fallbackTarget = (state.weeklyProjectGoals ?? [])
+        .filter((goal) => (goal.userId ?? 'ishida') === userId && goal.projectId === projectId && weekStarts.has(goal.weekStart))
         .reduce((sum, goal) => sum + targetCountFromText(goal.goalText, task.name), 0);
+      const targetCount = storedTarget || fallbackTarget;
       return {
         taskId: task.id,
         taskName: task.name,
@@ -998,6 +1051,28 @@ function renderMonthlyTaskProgress(userId, month, projectId) {
                 <span style="width:${row.targetCount > 0 ? row.progressRate : 0}%"></span>
               </div>
             </div>
+          `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
+function renderMonthlyTaskTargetInputs(userId, month, projectId) {
+  const tasks = (state.tasks ?? [])
+    .filter((task) => task.projectId === projectId && task.countable && task.status !== 'deleted')
+    .sort((a, b) => a.order - b.order);
+  if (tasks.length === 0) return '';
+  return `
+    <div class="target-input-list monthly-target-input-list">
+      ${tasks
+        .map(
+          (task) => `
+            <label class="target-input-row">
+              <span>${escapeHtml(task.name)}</span>
+              <input type="number" min="0" step="1" value="${monthlyTaskTargetFor(userId, month, task.id)}" data-field="monthly-task-target" data-user-id="${escapeHtml(userId)}" data-task-id="${escapeHtml(task.id)}" />
+              <em>件</em>
+            </label>
           `
         )
         .join('')}
@@ -1105,7 +1180,7 @@ function renderProjectTaskCountsLegacy(projectId, tasks) {
 }
 
 function renderWeeklyProjectGoals(view) {
-  const rows = computeProjectCountSummaries(state, activeUserId, weekStart());
+  const rows = computeProjectCountSummaries(state, activeUserId, weekStart()).filter((row) => projectGoalVisible(row.projectId));
   return `
     <section class="project-goal-panel">
       <div class="panel-heading project-goal-heading">
@@ -1114,6 +1189,7 @@ function renderWeeklyProjectGoals(view) {
           <h2>${escapeHtml(weekStart())} 週 / ${escapeHtml(displayUserLabel(activeUserId))}</h2>
         </div>
       </div>
+      ${renderProjectGoalVisibilityControls()}
       <div class="project-goal-grid">
         ${rows
           .map(
@@ -1138,13 +1214,64 @@ function renderWeeklyProjectGoals(view) {
                   <span>今週の目標</span>
                   <textarea data-field="weekly-project-goal" data-project-id="${escapeHtml(row.projectId)}" placeholder="今週の目標を自由に記入">${escapeHtml(weeklyProjectGoalFor(row.projectId))}</textarea>
                 </label>
-                ${renderProjectTaskCounts(row.projectId, view.countableTasks)}
+                ${renderProjectTaskCountsV2(row.projectId, view.countableTasks)}
               </article>
             `
           )
           .join('')}
       </div>
     </section>
+  `;
+}
+
+function renderProjectTaskCountsV2(projectId, tasks) {
+  const projectTasks = (state.tasks ?? tasks).filter(
+    (task) => task.projectId === projectId && task.countable && task.status !== 'deleted'
+  );
+  if (projectTasks.length === 0) {
+    return '<p class="empty-state compact">件数管理タスクなし</p>';
+  }
+  const summary = computeProjectCountSummaries(state, activeUserId, weekStart()).find((row) => row.projectId === projectId);
+
+  return `
+    <div class="project-count-list">
+      ${projectTasks
+        .map((task) => {
+          const actualCount = weeklyCountFor(task.id);
+          const targetCount = weeklyTargetFor(task.id) ?? 0;
+          const todayCount = countFor(task.id, currentDate);
+          const progressRate = targetCount > 0 ? Math.min(100, Math.round((actualCount / targetCount) * 100)) : 0;
+          const taskMinutes = (state.dayActuals ?? [])
+            .filter((entry) => (entry.userId ?? 'ishida') === activeUserId && getWeekStart(entry.date) === weekStart())
+            .flatMap((entry) => getActualItems(entry))
+            .filter((item) => item.taskId === task.id)
+            .reduce((sum, item) => sum + item.minutes, 0);
+          const standard = actualCount === 0 ? '-' : `${Math.round(taskMinutes / actualCount)}分`;
+          return `
+            <div class="project-count-row">
+              <div class="project-count-main">
+                <span class="project-count-task">${escapeHtml(task.name)}</span>
+                <span class="project-count-meta count-tone-${countGoalTone(targetCount, actualCount)}">
+                  週合計: ${actualCount}/${targetCount || '-'}件 / 合計時間 ${(taskMinutes / 60).toFixed(1)}h (1件あたり ${standard})
+                </span>
+                <div class="monthly-progress-track" aria-hidden="true"><span style="width:${progressRate}%"></span></div>
+              </div>
+              <div class="weekly-count-inputs">
+                <label><span>今週目標</span><input type="number" min="0" step="1" value="${targetCount}" data-field="weekly-task-target" data-task-id="${escapeHtml(task.id)}" /></label>
+                <label><span>今日実績</span><input type="number" min="0" step="1" value="${todayCount}" data-field="daily-task-count" data-task-id="${escapeHtml(task.id)}" /></label>
+              </div>
+            </div>
+          `;
+        })
+        .join('')}
+      ${
+        summary
+          ? `<p class="project-count-total">大分類合計: ${(summary.totalMinutes / 60).toFixed(1)}h / 標準工数 ${
+              summary.standardMinutesPerCount == null ? '-' : `${summary.standardMinutesPerCount}分`
+            }</p>`
+          : ''
+      }
+    </div>
   `;
 }
 
@@ -1206,7 +1333,7 @@ function renderMonthlyProjectGoals() {
         </div>
       </div>
       <div class="project-goal-grid">
-        ${activeProjects()
+        ${monthlyGoalProjects()
           .map(
             (project) => `
               <article class="project-goal-card monthly-goal-card">
@@ -1418,6 +1545,59 @@ function renderPie(metrics) {
   `;
 }
 
+function projectTimeRows(periodStart, periodMode, userId = activeUserId) {
+  const dates = new Set(periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart));
+  const tasks = new Map(state.tasks.map((task) => [task.id, task]));
+  const projects = new Map(state.projects.map((project) => [project.id, project]));
+  const totals = new Map();
+  for (const entry of state.dayActuals ?? []) {
+    if ((entry.userId ?? 'ishida') !== userId || !dates.has(entry.date)) continue;
+    for (const item of getActualItems(entry)) {
+      const task = tasks.get(item.taskId);
+      if (!task || task.nature === 'break') continue;
+      const project = projects.get(task.projectId);
+      if (!project) continue;
+      totals.set(task.projectId, {
+        projectId: task.projectId,
+        projectName: project.name,
+        minutes: (totals.get(task.projectId)?.minutes ?? 0) + item.minutes
+      });
+    }
+  }
+  const totalMinutes = [...totals.values()].reduce((sum, row) => sum + row.minutes, 0);
+  return [...totals.values()]
+    .sort((a, b) => b.minutes - a.minutes)
+    .map((row) => ({ ...row, ratio: totalMinutes === 0 ? 0 : Math.round((row.minutes / totalMinutes) * 100) }));
+}
+
+function renderProjectTimePie(periodStart, periodMode) {
+  const rows = projectTimeRows(periodStart, periodMode);
+  if (rows.length === 0) {
+    return '<p class="empty-state compact">大分類別の時間配分はまだありません</p>';
+  }
+  const colors = ['#2364d2', '#1f9d6a', '#f59e0b', '#7c3aed', '#ef4444', '#0ea5e9'];
+  let cursor = 0;
+  const stops = rows.map((row, index) => {
+    const start = cursor;
+    cursor += row.ratio;
+    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+  });
+  return `
+    <div class="ratio-card project-ratio-card">
+      <div class="pie" style="background:conic-gradient(${stops.join(', ')})"></div>
+      <div class="legend">
+        ${rows
+          .map(
+            (row, index) => `
+              <span><i class="dot" style="background:${colors[index % colors.length]}"></i>${escapeHtml(row.projectName)} ${row.ratio}%</span>
+            `
+          )
+          .join('')}
+      </div>
+    </div>
+  `;
+}
+
 function renderReviewForm(review) {
   return `
       <section class="panel review-form-panel">
@@ -1526,6 +1706,7 @@ function renderReviewDashboard() {
           </div>
         </div>
         ${renderPie(metrics)}
+        ${renderProjectTimePie(periodStart, reviewMode)}
       </section>
       <section class="panel">
         <div class="panel-heading compact">
@@ -1597,6 +1778,7 @@ function render() {
   `;
   enableShortcutDragging();
   applyAppBranding();
+  applyPlanPromptControls();
   applyReviewLabels();
   applyMonthlyProgress();
 }
@@ -1616,6 +1798,21 @@ function applyAppBranding() {
   const headerKicker = root.querySelector('.app-header .section-kicker');
   if (headerTitle) headerTitle.textContent = APP_NAME;
   if (headerKicker) headerKicker.textContent = '業務管理';
+}
+
+function applyPlanPromptControls() {
+  const prompt = root.querySelector('.plan-prompt-controls');
+  if (!prompt) return;
+  const customButton = prompt.querySelector('[data-action="plan-prompt-custom"]');
+  const noteInput = prompt.querySelector('[data-field="plan-prompt-note"]');
+  if (customButton) customButton.textContent = '変更';
+  if (noteInput) {
+    noteInput.placeholder = '変更内容を記入';
+    noteInput.setAttribute('aria-label', '変更内容');
+    if (customButton && customButton.nextElementSibling !== noteInput) {
+      customButton.insertAdjacentElement('afterend', noteInput);
+    }
+  }
 }
 
 function applyReviewLabels() {
@@ -1642,11 +1839,12 @@ function applyReviewLabels() {
 function applyMonthlyProgress() {
   root.querySelectorAll('[data-field="monthly-project-goal"]').forEach((textarea) => {
     const label = textarea.closest('label');
-    if (!label || label.querySelector('.monthly-progress-list, .monthly-progress-empty')) return;
+    if (!label || label.querySelector('.monthly-progress-list, .monthly-progress-empty, .monthly-target-input-list')) return;
     const labelText = label.querySelector('span');
     if (labelText) labelText.textContent = displayUserLabel(textarea.dataset.userId);
     textarea.insertAdjacentHTML(
       'afterend',
+      renderMonthlyTaskTargetInputs(textarea.dataset.userId, currentDate.slice(0, 7), textarea.dataset.projectId) +
       renderMonthlyTaskProgress(textarea.dataset.userId, currentDate.slice(0, 7), textarea.dataset.projectId)
     );
   });
@@ -1873,6 +2071,18 @@ function handleChange(event) {
         target.checked
       )
     );
+  }
+  if (target.dataset.field === 'project-goal-visible') {
+    commit(upsertProjectGoalVisibility(state, activeUserId, target.dataset.projectId, target.checked));
+  }
+  if (target.dataset.field === 'weekly-task-target') {
+    commit(upsertWeeklyGoal(state, weekStart(), target.dataset.taskId, target.value, activeUserId));
+  }
+  if (target.dataset.field === 'daily-task-count') {
+    commit(setDailyCount(state, activeUserId, currentDate, target.dataset.taskId, target.value));
+  }
+  if (target.dataset.field === 'monthly-task-target') {
+    commit(upsertMonthlyTaskTarget(state, target.dataset.userId, currentDate.slice(0, 7), target.dataset.taskId, target.value));
   }
   if (target.dataset.field === 'start-hour' || target.dataset.field === 'end-hour') {
     const current = getTimelineSetting(state, activeUserId, currentDate);

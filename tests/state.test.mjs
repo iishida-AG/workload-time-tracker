@@ -10,8 +10,11 @@ import {
   normalizeState,
   moveProjectOrder,
   moveTaskOrder,
+  setDailyCount,
   updateTask,
+  upsertMonthlyTaskTarget,
   upsertMonthlyProjectGoal,
+  upsertProjectGoalVisibility,
   upsertReview,
   upsertTimelineSetting,
   toggleWeeklyTodoItem,
@@ -19,7 +22,7 @@ import {
   upsertWeeklyProjectGoal,
   upsertWeeklyGoal
 } from '../src/state/store.js';
-import { incrementDailyCount } from '../src/domain/metrics.js';
+import { computeProjectCountSummaries, incrementDailyCount } from '../src/domain/metrics.js';
 
 function test(name, fn) {
   try {
@@ -152,6 +155,35 @@ test('upsertWeeklyGoal replaces an existing target for the same task and week', 
 
   assert.equal(updated.weeklyGoals.filter((goal) => goal.taskId === 'ses-sales-1').length, 1);
   assert.equal(updated.weeklyGoals.find((goal) => goal.taskId === 'ses-sales-1').targetCount, 18);
+});
+
+test('count targets and weekly project visibility are scoped per user', () => {
+  const state = createAppState('2026-08-03');
+  const withIshidaTarget = upsertWeeklyGoal(state, '2026-08-03', 'ses-sales-1', 10, 'ishida');
+  const withTanoueTarget = upsertWeeklyGoal(withIshidaTarget, '2026-08-03', 'ses-sales-1', 4, 'tanoue');
+  const withMonthlyTarget = upsertMonthlyTaskTarget(withTanoueTarget, 'tanoue', '2026-08', 'ses-sales-1', 40);
+  const withTanoueCount = setDailyCount(withMonthlyTarget, 'tanoue', '2026-08-05', 'ses-sales-1', 3);
+  const withHiddenTanoue = upsertProjectGoalVisibility(withTanoueCount, 'tanoue', 'ses-sales', false);
+
+  assert.equal(
+    withHiddenTanoue.weeklyGoals.find((goal) => goal.userId === 'ishida' && goal.taskId === 'ses-sales-1').targetCount,
+    10
+  );
+  assert.equal(
+    withHiddenTanoue.weeklyGoals.find((goal) => goal.userId === 'tanoue' && goal.taskId === 'ses-sales-1').targetCount,
+    4
+  );
+  assert.equal(withHiddenTanoue.monthlyTaskTargets.find((target) => target.userId === 'tanoue').targetCount, 40);
+  assert.equal(withHiddenTanoue.dailyCounts.find((count) => count.userId === 'tanoue').count, 3);
+  assert.equal(withHiddenTanoue.projectGoalVisibility.find((row) => row.userId === 'tanoue').visible, false);
+  assert.equal(withHiddenTanoue.projectGoalVisibility.some((row) => row.userId === 'ishida'), false);
+});
+
+test('project count summaries keep hidden master projects until deleted', () => {
+  const state = hideProject(createAppState('2026-08-03'), 'ses-sales');
+  const rows = computeProjectCountSummaries(state, 'ishida', '2026-08-03');
+
+  assert.ok(rows.some((row) => row.projectId === 'ses-sales'));
 });
 
 test('normalizeState adds user fields and new collections to older local data', () => {

@@ -488,7 +488,7 @@ export function computeProjectCountSummaries(state, userId, weekStart) {
   const dates = new Set(getWeekDates(weekStart));
   const actuals = (state.dayActuals ?? []).filter((entry) => withinDates(entry, dates) && matchesUser(entry, userId));
   return (state.projects ?? [])
-    .filter((project) => project.status === 'active')
+    .filter((project) => project.status !== 'deleted')
     .sort((a, b) => a.order - b.order)
     .map((project) => {
       const projectTaskIds = (state.tasks ?? [])
