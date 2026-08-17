@@ -451,13 +451,13 @@ main {
 
 .timeline-cell {
   display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-columns: 76px minmax(0, 1fr);
   grid-template-areas:
     "hour task";
   align-items: center;
   width: 100%;
   min-height: 26px;
-  padding: 2px 8px;
+  padding: 2px 6px;
   border: 1px solid #dfe6ef;
   border-left-width: 5px;
   border-radius: 8px;
@@ -576,14 +576,14 @@ main {
 
 .actual-entry {
   display: grid;
-  grid-template-columns: 118px minmax(0, 1fr);
+  grid-template-columns: 88px minmax(0, 1fr);
   gap: 6px;
   align-items: start;
   min-width: 0;
 }
 
 .plan-entry {
-  grid-template-columns: 30px minmax(104px, 118px) minmax(0, 1fr);
+  grid-template-columns: 30px 88px minmax(0, 1fr);
 }
 
 .actual-entry .timeline-cell {
@@ -598,14 +598,14 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) 58px minmax(150px, 1.8fr) 28px;
+  grid-template-columns: minmax(74px, 0.8fr) 58px minmax(180px, 2.4fr) 28px;
   gap: 4px;
   align-items: center;
   min-width: 0;
 }
 
 .plan-entry .actual-item-row {
-  grid-template-columns: minmax(90px, 1fr) 58px minmax(150px, 1.8fr) 28px;
+  grid-template-columns: minmax(74px, 0.8fr) 58px minmax(180px, 2.4fr) 28px;
 }
 
 .actual-start-wrap {
