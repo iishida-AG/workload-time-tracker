@@ -501,7 +501,7 @@ function renderTimeRangeControls(view) {
 }
 
 function hourRangeLabel(hour) {
-  return `${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00`;
+  return `${String(hour).padStart(2, '0')}:00-`;
 }
 
 function minutesFromClock(clock) {
