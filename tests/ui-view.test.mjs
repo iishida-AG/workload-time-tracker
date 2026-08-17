@@ -6,7 +6,8 @@ import {
   getCopyTextKey,
   getUserIdFromUrl,
   isAppUndoShortcut,
-  nextSelectedTaskId
+  nextSelectedTaskId,
+  selectedTaskAfterTimelineUse
 } from '../src/main.js';
 
 const jp = {
@@ -135,6 +136,11 @@ test('getCopyTextKey creates stable keys for one-touch daily text copy buttons',
 test('nextSelectedTaskId clears the selection when the selected shortcut is pressed again', () => {
   assert.equal(nextSelectedTaskId('proposal', 'proposal'), '');
   assert.equal(nextSelectedTaskId('', 'proposal'), 'proposal');
+});
+
+test('selectedTaskAfterTimelineUse returns the shortcut palette to erase mode', () => {
+  assert.equal(selectedTaskAfterTimelineUse('proposal'), '');
+  assert.equal(selectedTaskAfterTimelineUse(''), '');
 });
 
 test('isAppUndoShortcut handles Ctrl+Z outside text inputs only', () => {

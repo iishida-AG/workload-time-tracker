@@ -36,29 +36,54 @@ function cleanMinutes(value, fallback = 60) {
   return Number.isFinite(minutes) && minutes >= 0 ? minutes : fallback;
 }
 
+function cleanStartMinute(value) {
+  const minute = Number(value);
+  if (!Number.isFinite(minute) || minute < 0 || minute >= 60) return undefined;
+  return Math.floor(minute);
+}
+
+function withOptionalStartMinute(item) {
+  const startMinute = cleanStartMinute(item.startMinute);
+  const { startMinute: ignoredStartMinute, ...rest } = item;
+  return startMinute === undefined ? rest : { ...rest, startMinute };
+}
+
 export function getActualItems(entry) {
   if (!entry) return [];
   if (Array.isArray(entry.items) && entry.items.length > 0) {
     return entry.items
       .filter((item) => item?.taskId)
-      .map((item) => ({
-        taskId: item.taskId,
-        note: item.note ?? '',
-        minutes: cleanMinutes(item.minutes)
-      }));
+      .map((item) =>
+        withOptionalStartMinute({
+          taskId: item.taskId,
+          note: item.note ?? '',
+          minutes: cleanMinutes(item.minutes),
+          startMinute: item.startMinute
+        })
+      );
   }
   if (!entry.taskId) return [];
-  return [{ taskId: entry.taskId, note: entry.note ?? '', minutes: cleanMinutes(entry.minutes) }];
+  return [
+    withOptionalStartMinute({
+      taskId: entry.taskId,
+      note: entry.note ?? '',
+      minutes: cleanMinutes(entry.minutes),
+      startMinute: entry.startMinute
+    })
+  ];
 }
 
 export function makeActualEntry(base, items) {
   const cleanItems = items
     .filter((item) => item?.taskId)
-    .map((item) => ({
-      taskId: item.taskId,
-      note: item.note ?? '',
-      minutes: cleanMinutes(item.minutes, 0)
-    }))
+    .map((item) =>
+      withOptionalStartMinute({
+        taskId: item.taskId,
+        note: item.note ?? '',
+        minutes: cleanMinutes(item.minutes, 0),
+        startMinute: item.startMinute
+      })
+    )
     .filter((item) => item.minutes > 0);
   const first = cleanItems[0];
   return {
@@ -120,9 +145,11 @@ function formatJapaneseScheduleRange(start, end) {
 export function formatActualItemRanges(hour, items) {
   let cursor = hour * 60;
   return items.map((item) => {
-    const start = cursor;
-    cursor += cleanMinutes(item.minutes, 0);
-    return `${formatMinuteClock(start)}-${formatMinuteClock(cursor)}`;
+    const explicitStartMinute = cleanStartMinute(item.startMinute);
+    const start = explicitStartMinute === undefined ? cursor : hour * 60 + explicitStartMinute;
+    const end = start + cleanMinutes(item.minutes, 0);
+    cursor = end;
+    return `${formatMinuteClock(start)}-${formatMinuteClock(end)}`;
   });
 }
 
@@ -173,7 +200,7 @@ export function copyPlanHourToActual(state, userId, date, hour) {
   };
 }
 
-function addMinutesToCollection(state, collectionName, userId, date, hour, taskId, minutes, note = '') {
+function addMinutesToCollection(state, collectionName, userId, date, hour, taskId, minutes, note = '', startMinute) {
   if (!taskId) return state;
   const tasks = taskById(state.tasks ?? []);
   const isBreak = collectionName === 'dayActuals' && tasks.get(taskId)?.nature === 'break';
@@ -188,7 +215,14 @@ function addMinutesToCollection(state, collectionName, userId, date, hour, taskI
     if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
     found = true;
     const items = getActualItems(entry);
-    const existingIndex = items.findIndex((item) => item.taskId === taskId && (note === '' || item.note === note));
+    const cleanStart = cleanStartMinute(startMinute);
+    const existingIndex = items.findIndex(
+      (item) =>
+        item.taskId === taskId &&
+        (note === '' || item.note === note) &&
+        (cleanStart === undefined || cleanStartMinute(item.startMinute) === cleanStart)
+    );
+    const newItem = withOptionalStartMinute({ taskId, note, minutes: cleanMinuteValue, startMinute: cleanStart });
     const nextItems =
       existingIndex >= 0
         ? items.map((item, index) =>
@@ -196,23 +230,23 @@ function addMinutesToCollection(state, collectionName, userId, date, hour, taskI
               ? { ...item, note: note || item.note, minutes: item.minutes + cleanMinuteValue }
               : item
           )
-        : [...items, { taskId, note, minutes: cleanMinuteValue }];
+        : [...items, newItem];
     return makeActualEntry({ userId, date, hour }, nextItems);
   });
 
   if (!found) {
-    entries.push(makeActualEntry({ userId, date, hour }, [{ taskId, note, minutes: cleanMinuteValue }]));
+    entries.push(makeActualEntry({ userId, date, hour }, [withOptionalStartMinute({ taskId, note, minutes: cleanMinuteValue, startMinute })]));
   }
 
   return { ...state, [collectionName]: entries };
 }
 
-export function addActualMinutes(state, userId, date, hour, taskId, minutes, note = '') {
-  return addMinutesToCollection(state, 'dayActuals', userId, date, hour, taskId, minutes, note);
+export function addActualMinutes(state, userId, date, hour, taskId, minutes, note = '', startMinute) {
+  return addMinutesToCollection(state, 'dayActuals', userId, date, hour, taskId, minutes, note, startMinute);
 }
 
-export function addPlanMinutes(state, userId, date, hour, taskId, minutes, note = '') {
-  return addMinutesToCollection(state, 'dayPlans', userId, date, hour, taskId, minutes, note);
+export function addPlanMinutes(state, userId, date, hour, taskId, minutes, note = '', startMinute) {
+  return addMinutesToCollection(state, 'dayPlans', userId, date, hour, taskId, minutes, note, startMinute);
 }
 
 function updateTimelineItem(state, collectionName, userId, date, hour, index, patch) {
@@ -223,7 +257,8 @@ function updateTimelineItem(state, collectionName, userId, date, hour, index, pa
         ? {
             ...item,
             ...patch,
-            minutes: patch.minutes === undefined ? item.minutes : cleanMinutes(patch.minutes, 0)
+            minutes: patch.minutes === undefined ? item.minutes : cleanMinutes(patch.minutes, 0),
+            startMinute: patch.startMinute === undefined ? item.startMinute : cleanStartMinute(patch.startMinute)
           }
         : item
     );
@@ -286,6 +321,71 @@ export function setTimelineEntry(state, collectionName, userId, date, hour, task
   return { ...state, [collectionName]: entries };
 }
 
+function minutesFromClock(clock) {
+  const [hour, minute] = String(clock).split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function appendOrReplaceTimelineItem(state, collectionName, userId, date, hour, item) {
+  const startMinute = cleanStartMinute(item.startMinute);
+  let found = false;
+  const entries = (state[collectionName] ?? []).map((entry) => {
+    if (!sameTimelineSlot(entry, userId, date, hour)) return entry;
+    found = true;
+    const items = getActualItems(entry).filter((existing) => {
+      if (startMinute === undefined) return true;
+      return cleanStartMinute(existing.startMinute) !== startMinute;
+    });
+    return makeActualEntry({ userId, date, hour }, [...items, withOptionalStartMinute({ ...item, startMinute })]);
+  });
+  if (!found) {
+    entries.push(makeActualEntry({ userId, date, hour }, [withOptionalStartMinute({ ...item, startMinute })]));
+  }
+  return { ...state, [collectionName]: entries };
+}
+
+function findPreviousActualItem(state, userId, date, targetMinutes) {
+  const candidates = [];
+  for (const entry of (state.dayActuals ?? []).filter((row) => sameTimelineSlot(row, userId, date, row.hour))) {
+    if ((entry.userId ?? 'ishida') !== userId || entry.date !== date) continue;
+    const items = getActualItems(entry);
+    const ranges = formatActualItemRanges(entry.hour, items);
+    items.forEach((item, index) => {
+      const start = minutesFromClock(ranges[index].split('-')[0]);
+      if (start < targetMinutes) candidates.push({ item, start });
+    });
+  }
+  candidates.sort((a, b) => b.start - a.start);
+  return candidates[0]?.item;
+}
+
+export function applyPlanNotificationResponse(state, options) {
+  const userId = options.userId ?? 'ishida';
+  const date = options.date;
+  const hour = Number(options.hour);
+  const itemIndex = Number(options.itemIndex ?? 0);
+  const plan = (state.dayPlans ?? []).find((entry) => sameTimelineSlot(entry, userId, date, hour));
+  const planItem = getActualItems(plan)[itemIndex];
+  if (!planItem) return state;
+
+  const targetHour = Number.isFinite(Number(options.startHour)) ? Number(options.startHour) : hour;
+  const startMinute = cleanStartMinute(options.startMinute) ?? cleanStartMinute(planItem.startMinute) ?? 0;
+  const minutes = cleanMinutes(options.minutes ?? planItem.minutes, planItem.minutes);
+  const targetMinutes = targetHour * 60 + startMinute;
+  const mode = options.mode ?? 'ok';
+  const previous = mode === 'continue' ? findPreviousActualItem(state, userId, date, targetMinutes) : null;
+  const source = previous ?? planItem;
+  const note = mode === 'custom' ? String(options.note ?? '').trim() : source.note;
+  if (mode === 'custom' && !note) return state;
+
+  return appendOrReplaceTimelineItem(state, 'dayActuals', userId, date, targetHour, {
+    taskId: source.taskId,
+    note,
+    minutes,
+    startMinute
+  });
+}
+
 export function setTimelineNote(state, collectionName, userId, date, hour, note) {
   if (collectionName === 'dayActuals' || collectionName === 'dayPlans') {
     const entries = (state[collectionName] ?? []).map((entry) => {
@@ -321,8 +421,12 @@ export function formatDailyScheduleText(state, collectionName, userId, date, sta
     const items = getActualItems(entry);
     const ranges = formatActualItemRanges(hour, items);
 
-    items.forEach((item, index) => {
-      const [start, end] = ranges[index].split('-');
+    const timedItems = items
+      .map((item, index) => ({ item, range: ranges[index], start: minutesFromClock(ranges[index].split('-')[0]) }))
+      .sort((a, b) => a.start - b.start);
+
+    timedItems.forEach(({ item, range }) => {
+      const [start, end] = range.split('-');
       const text = item.note?.trim() || tasks.get(item.taskId)?.name || labels.unset;
       const previous = segments.at(-1);
       if (previous && previous.text === text && previous.end === start) {

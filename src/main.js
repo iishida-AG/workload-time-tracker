@@ -8,7 +8,9 @@ import {
   copyPlanHourToActual,
   addActualMinutes,
   addPlanMinutes,
+  applyPlanNotificationResponse,
   getActualItems,
+  formatActualItemRanges,
   incrementDailyCount,
   removeActualItem,
   removePlanItem,
@@ -16,9 +18,9 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260810-reportformat-v1';
+} from './domain/metrics.js?v=20260817-business-tool-plan-prompt-v1';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260810-reportformat-v1';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260817-business-tool-plan-prompt-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
@@ -63,8 +65,11 @@ let unsubscribeState = null;
 let unsubscribeAuth = null;
 let suppressedAdapterRenderCount = 0;
 let undoStack = [];
+let dismissedPlanPromptKeys = new Set();
+let planPromptTimer = null;
 
 const EXPENSES_URL = 'https://ishida-ai-tool-dev.web.app/expenses';
+const APP_NAME = '業務管理ツール';
 const UNDO_LIMIT = 30;
 const validUserIds = new Set(USERS.map((user) => user.id));
 const shortcutVisibilityLabels = {
@@ -100,6 +105,10 @@ export function getCopyTextKey(label) {
 
 export function nextSelectedTaskId(currentTaskId, clickedTaskId) {
   return currentTaskId === clickedTaskId ? '' : clickedTaskId;
+}
+
+export function selectedTaskAfterTimelineUse() {
+  return '';
 }
 
 export function isAppUndoShortcut(event) {
@@ -366,6 +375,65 @@ function renderReminderStrip(view) {
   `;
 }
 
+function hasActualAtStart(userId, date, hour, startMinute) {
+  const entry = entryFor('dayActuals', hour, userId);
+  return getActualItems(entry).some((item, index, items) => startMinuteForTimelineItem(hour, items, index) === startMinute);
+}
+
+function currentPlanPrompt(view) {
+  if (currentDate !== todayKey()) return null;
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const candidates = [];
+  for (const entry of (state.dayPlans ?? []).filter((row) => (row.userId ?? 'ishida') === view.userId && row.date === currentDate)) {
+    const items = getActualItems(entry);
+    const ranges = formatActualItemRanges(entry.hour, items);
+    items.forEach((item, index) => {
+      const [start, end] = ranges[index].split('-');
+      const startTotal = minutesFromClock(start);
+      const startMinute = startTotal % 60;
+      const key = `${view.userId}-${currentDate}-${entry.hour}-${index}-${start}`;
+      if (startTotal <= nowMinutes && !dismissedPlanPromptKeys.has(key) && !hasActualAtStart(view.userId, currentDate, entry.hour, startMinute)) {
+        candidates.push({ entry, item, index, start, end, startTotal, startMinute, key });
+      }
+    });
+  }
+  candidates.sort((a, b) => b.startTotal - a.startTotal);
+  return candidates[0] ?? null;
+}
+
+function renderPlanPrompt(view) {
+  const prompt = currentPlanPrompt(view);
+  if (!prompt) return '';
+  const task = taskById(prompt.item.taskId);
+  const startHour = Math.floor(prompt.startTotal / 60);
+  return `
+    <section class="plan-prompt panel">
+      <div class="plan-prompt-main">
+        <span class="section-kicker">予定時刻です</span>
+        <strong>${escapeHtml(prompt.start)}-${escapeHtml(prompt.end)} ${escapeHtml(task?.name ?? '未設定')}</strong>
+        ${prompt.item.note ? `<span>${escapeHtml(prompt.item.note)}</span>` : ''}
+      </div>
+      <div class="plan-prompt-controls">
+        <label>
+          <span>開始</span>
+          <select data-field="plan-prompt-hour">${renderHourOptions(startHour, 0, 23)}</select>
+          <select data-field="plan-prompt-minute">${renderStartMinuteOptions(prompt.startMinute)}</select>
+        </label>
+        <label>
+          <span>分</span>
+          <input type="number" min="0" step="5" value="${escapeHtml(prompt.item.minutes)}" data-field="plan-prompt-minutes" />
+        </label>
+        <input type="text" data-field="plan-prompt-note" placeholder="予定と違う場合の内容" />
+        <button class="primary-button" data-action="plan-prompt-ok" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">OK</button>
+        <button class="ghost-button" data-action="plan-prompt-continue" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">継続</button>
+        <button class="ghost-button" data-action="plan-prompt-custom" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">自由入力</button>
+        <button class="icon-button" data-action="plan-prompt-dismiss" data-prompt-key="${escapeHtml(prompt.key)}" aria-label="閉じる">${icon('minus')}</button>
+      </div>
+    </section>
+  `;
+}
+
 function renderUserSwitcher(view) {
   return `
     <div class="user-switcher" role="group" aria-label="入力ユーザー">
@@ -434,6 +502,26 @@ function renderTimeRangeControls(view) {
 
 function hourRangeLabel(hour) {
   return `${String(hour).padStart(2, '0')}:00-${String(hour + 1).padStart(2, '0')}:00`;
+}
+
+function minutesFromClock(clock) {
+  const [hour, minute] = String(clock).split(':').map(Number);
+  return hour * 60 + minute;
+}
+
+function startMinuteForTimelineItem(hour, items, index) {
+  const ranges = formatActualItemRanges(hour, items);
+  const start = ranges[index]?.split('-')[0] ?? `${hour}:00`;
+  return minutesFromClock(start) % 60;
+}
+
+function renderStartMinuteOptions(selectedMinute) {
+  return [0, 15, 30, 45]
+    .map(
+      (minute) =>
+        `<option value="${minute}" ${minute === selectedMinute ? 'selected' : ''}>${String(minute).padStart(2, '0')}</option>`
+    )
+    .join('');
 }
 
 function renderCopyTextarea(label, text) {
@@ -623,9 +711,16 @@ function renderTimelineItemRows(entry, hour, collectionName) {
       ${items
         .map((item, index) => {
           const task = taskById(item.taskId);
+          const selectedMinute = startMinuteForTimelineItem(hour, items, index);
           return `
-            <div class="actual-item-row">
+            <div class="actual-item-row" data-drop-target="timeline-item">
               <span class="actual-item-task">${escapeHtml(task?.name ?? '\u672a\u8a2d\u5b9a')}</span>
+              <label class="actual-start-wrap">
+                <span>:</span>
+                <select class="actual-start-input" data-field="timeline-item-start-minute" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" aria-label="\u958b\u59cb\u5206">
+                  ${renderStartMinuteOptions(selectedMinute)}
+                </select>
+              </label>
               <input class="actual-minutes-input" type="number" min="0" step="5" value="${escapeHtml(item.minutes)}" data-field="timeline-item-minutes" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" />
               <span class="actual-minute-label">\u5206</span>
               <input class="actual-note-input" type="text" value="${escapeHtml(item.note ?? '')}" data-field="timeline-item-note" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" aria-label="\u30e1\u30e2" />
@@ -978,6 +1073,7 @@ function renderDashboard(view) {
   return `
     <div class="dashboard-layout">
       <div class="main-stack">
+        ${renderPlanPrompt(view)}
         ${renderTimelineBoard(view)}
         ${renderPartnerPreview(view)}
       </div>
@@ -1262,6 +1358,25 @@ function render() {
       </main>
     </div>
   `;
+  enableShortcutDragging();
+  applyAppBranding();
+}
+
+function enableShortcutDragging() {
+  root
+    .querySelectorAll('.shortcut-card[data-task-id]:not([data-task-id=""])')
+    .forEach((button) => {
+      button.setAttribute('draggable', 'true');
+      button.classList.add('draggable-shortcut');
+    });
+}
+
+function applyAppBranding() {
+  if (typeof document !== 'undefined') document.title = APP_NAME;
+  const headerTitle = root.querySelector('.app-header h1');
+  const headerKicker = root.querySelector('.app-header .section-kicker');
+  if (headerTitle) headerTitle.textContent = APP_NAME;
+  if (headerKicker) headerKicker.textContent = '業務管理';
 }
 
 function handleClick(event) {
@@ -1318,6 +1433,7 @@ function handleClick(event) {
           entry?.note ?? ''
         )
       : clearTimelineEntry(state, collectionName, activeUserId, currentDate, hour);
+    selectedTaskId = selectedTaskAfterTimelineUse(selectedTaskId);
     commit(nextState);
   }
   if (action === 'copy-plan') {
@@ -1332,11 +1448,39 @@ function handleClick(event) {
     const collectionName = focusedCell?.collectionName === 'dayPlans' ? 'dayPlans' : 'dayActuals';
     const hour = collectionName === 'dayPlans' && focusedCell ? focusedCell.hour : activeActualHour(view);
     focusedCell = { collectionName, userId: activeUserId, date: currentDate, hour };
+    selectedTaskId = selectedTaskAfterTimelineUse(selectedTaskId);
     commit(
       collectionName === 'dayPlans'
         ? addPlanMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes))
         : addActualMinutes(state, activeUserId, currentDate, hour, button.dataset.taskId, Number(button.dataset.minutes))
     );
+  }
+  if (action === 'plan-prompt-ok' || action === 'plan-prompt-continue' || action === 'plan-prompt-custom') {
+    const panel = button.closest('.plan-prompt');
+    const mode = action === 'plan-prompt-ok' ? 'ok' : action === 'plan-prompt-continue' ? 'continue' : 'custom';
+    const startHour = Number(panel?.querySelector('[data-field="plan-prompt-hour"]')?.value ?? button.dataset.hour);
+    const startMinute = Number(panel?.querySelector('[data-field="plan-prompt-minute"]')?.value ?? 0);
+    const minutes = Number(panel?.querySelector('[data-field="plan-prompt-minutes"]')?.value ?? 60);
+    const note = panel?.querySelector('[data-field="plan-prompt-note"]')?.value ?? '';
+    const key = button.dataset.promptKey;
+    if (key) dismissedPlanPromptKeys.add(key);
+    commit(
+      applyPlanNotificationResponse(state, {
+        userId: activeUserId,
+        date: currentDate,
+        hour: Number(button.dataset.hour),
+        itemIndex: Number(button.dataset.itemIndex),
+        mode,
+        note,
+        startHour,
+        startMinute,
+        minutes
+      })
+    );
+  }
+  if (action === 'plan-prompt-dismiss') {
+    if (button.dataset.promptKey) dismissedPlanPromptKeys.add(button.dataset.promptKey);
+    render();
   }
   if (action === 'remove-timeline-item') {
     const collectionName = button.dataset.collection;
@@ -1469,6 +1613,14 @@ function handleChange(event) {
         : updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { minutes: Number(target.value) })
     );
   }
+  if (target.dataset.field === 'timeline-item-start-minute') {
+    const collectionName = target.dataset.collection;
+    commit(
+      collectionName === 'dayPlans'
+        ? updatePlanItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { startMinute: Number(target.value) })
+        : updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { startMinute: Number(target.value) })
+    );
+  }
   if (target.dataset.field === 'actual-item-minutes') {
     commit(updateActualItem(state, activeUserId, currentDate, Number(target.dataset.hour), Number(target.dataset.itemIndex), { minutes: Number(target.value) }));
   }
@@ -1544,6 +1696,36 @@ function handleInput(event) {
 
 function handleCompositionEnd(event) {
   handleInput({ target: event.target, isComposing: false });
+}
+
+function handleDragStart(event) {
+  const shortcut = event.target.closest?.('.shortcut-card[data-task-id]:not([data-task-id=""])');
+  if (!shortcut || !event.dataTransfer) return;
+  event.dataTransfer.setData('text/plain', shortcut.dataset.taskId);
+  event.dataTransfer.effectAllowed = 'copy';
+}
+
+function handleDragOver(event) {
+  if (!event.target.closest?.('[data-timeline-cell="true"]')) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+}
+
+function handleDrop(event) {
+  const cell = event.target.closest?.('[data-timeline-cell="true"]');
+  if (!cell || !event.dataTransfer) return;
+  const taskId = event.dataTransfer.getData('text/plain');
+  if (!taskId) return;
+  event.preventDefault();
+  const collectionName = cell.dataset.collection;
+  const hour = Number(cell.dataset.hour);
+  focusedCell = { collectionName, userId: activeUserId, date: currentDate, hour };
+  selectedTaskId = selectedTaskAfterTimelineUse(selectedTaskId);
+  commit(
+    collectionName === 'dayPlans'
+      ? addPlanMinutes(state, activeUserId, currentDate, hour, taskId, 60)
+      : addActualMinutes(state, activeUserId, currentDate, hour, taskId, 60)
+  );
 }
 
 function handleSubmit(event) {
@@ -1630,8 +1812,16 @@ function boot() {
   root.addEventListener('change', handleChange);
   root.addEventListener('input', handleInput);
   root.addEventListener('compositionend', handleCompositionEnd);
+  root.addEventListener('dragstart', handleDragStart);
+  root.addEventListener('dragover', handleDragOver);
+  root.addEventListener('drop', handleDrop);
   root.addEventListener('submit', handleSubmit);
   root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
+  if (!planPromptTimer) {
+    planPromptTimer = window.setInterval(() => {
+      if (state && activeTab === 'dashboard') render();
+    }, 60000);
+  }
   startAuthFlow();
   return;
   root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';

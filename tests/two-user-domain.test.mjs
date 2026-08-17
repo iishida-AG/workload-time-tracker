@@ -11,6 +11,7 @@ import {
   formatDailyCategorySummaryText,
   formatActualItemRanges,
   formatDailyScheduleText,
+  applyPlanNotificationResponse,
   setTimelineEntry,
   setTimelineNote
 } from '../src/domain/metrics.js';
@@ -196,6 +197,100 @@ test('formatActualItemRanges accumulates actual items within and beyond one hour
   ]);
 
   assert.deepEqual(ranges, ['10:00-10:15', '10:15-11:00', '11:00-11:15']);
+});
+
+test('formatActualItemRanges respects explicit quarter-hour starts', () => {
+  const ranges = formatActualItemRanges(10, [
+    { taskId: 'mail', minutes: 30, startMinute: 45 }
+  ]);
+
+  assert.deepEqual(ranges, ['10:45-11:15']);
+});
+
+test('formatDailyScheduleText outputs explicit start-minute rows and merges adjacent same text', () => {
+  const timedState = {
+    ...state,
+    dayPlans: [
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 10,
+        items: [
+          { taskId: 'proposal', note: 'Rubicon', minutes: 30, startMinute: 0 },
+          { taskId: 'mail', note: 'system share', minutes: 30, startMinute: 30 }
+        ]
+      },
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 11,
+        items: [{ taskId: 'mail', note: 'AI agent', minutes: 60, startMinute: 0 }]
+      },
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 12,
+        items: [{ taskId: 'mail', note: 'AI agent', minutes: 60, startMinute: 0 }]
+      }
+    ]
+  };
+
+  assert.equal(
+    formatDailyScheduleText(timedState, 'dayPlans', 'ishida', '2026-08-05', 10, 13),
+    '10\u664200\u5206-10\u664230\u5206 Rubicon\n10\u664230\u5206-11\u664200\u5206 system share\n11\u664200\u5206-13\u664200\u5206 AI agent'
+  );
+});
+
+test('applyPlanNotificationResponse can copy plan, continue previous actual, or use custom note', () => {
+  const timedState = {
+    ...state,
+    dayPlans: [
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 10,
+        items: [{ taskId: 'proposal', note: 'planned', minutes: 30, startMinute: 45 }]
+      }
+    ],
+    dayActuals: [
+      {
+        userId: 'ishida',
+        date: '2026-08-05',
+        hour: 10,
+        items: [{ taskId: 'mail', note: 'previous', minutes: 45, startMinute: 0 }]
+      }
+    ]
+  };
+
+  const copied = applyPlanNotificationResponse(timedState, {
+    userId: 'ishida',
+    date: '2026-08-05',
+    hour: 10,
+    itemIndex: 0,
+    mode: 'ok'
+  });
+  assert.equal(formatDailyScheduleText(copied, 'dayActuals', 'ishida', '2026-08-05', 10, 12), '10\u664200\u5206-10\u664245\u5206 previous\n10\u664245\u5206-11\u664215\u5206 planned');
+
+  const continued = applyPlanNotificationResponse(timedState, {
+    userId: 'ishida',
+    date: '2026-08-05',
+    hour: 10,
+    itemIndex: 0,
+    mode: 'continue'
+  });
+  assert.equal(formatDailyScheduleText(continued, 'dayActuals', 'ishida', '2026-08-05', 10, 12), '10\u664200\u5206-11\u664215\u5206 previous');
+
+  const custom = applyPlanNotificationResponse(timedState, {
+    userId: 'ishida',
+    date: '2026-08-05',
+    hour: 10,
+    itemIndex: 0,
+    mode: 'custom',
+    note: 'other work',
+    minutes: 15,
+    startMinute: 30
+  });
+  assert.equal(formatDailyScheduleText(custom, 'dayActuals', 'ishida', '2026-08-05', 10, 12), '10\u664200\u5206-10\u664245\u5206 previous\n10\u664230\u5206-10\u664245\u5206 other work');
 });
 
 test('formatDailyScheduleText keeps single-digit hours unpadded', () => {
