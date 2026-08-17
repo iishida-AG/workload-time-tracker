@@ -1364,6 +1364,10 @@ main {
   grid-column: 1 / -1;
 }
 
+.review-form-panel ~ .review-form-panel {
+  display: none;
+}
+
 .segmented {
   padding: 4px;
   border: 1px solid #d7deea;

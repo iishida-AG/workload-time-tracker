@@ -1334,6 +1334,37 @@ function renderPie(metrics) {
   `;
 }
 
+function renderReviewForm(review) {
+  return `
+      <section class="panel review-form-panel">
+        <div class="panel-heading compact">
+          <div>
+            <span class="section-kicker">振り返りフォーム</span>
+            <h2>${reviewWeekStart()} 週（前週）</h2>
+          </div>
+        </div>
+        <div class="review-form">
+          <label>
+            <span>目標振り返り</span>
+            <textarea data-review-field="goalReflection">${escapeHtml(review.goalReflection)}</textarea>
+          </label>
+          <label>
+            <span>課題感</span>
+            <textarea data-review-field="overtimeCause">${escapeHtml(review.overtimeCause)}</textarea>
+          </label>
+          <label>
+            <span>どうすべきか</span>
+            <textarea data-review-field="nextPromise">${escapeHtml(review.nextPromise)}</textarea>
+          </label>
+          <label>
+            <span>話し合いたいこと</span>
+            <textarea data-review-field="discussionItems" placeholder="- 話し合いたい議題&#10;- 確認したいこと">${escapeHtml(review.discussionItems ?? '')}</textarea>
+          </label>
+        </div>
+      </section>
+  `;
+}
+
 function renderReviewDashboard() {
   const targetWeek = reviewWeekStart();
   const periodStart = reviewMode === 'week' ? targetWeek : `${currentDate.slice(0, 7)}-01`;
@@ -1341,8 +1372,9 @@ function renderReviewDashboard() {
   const review = currentReview();
   return `
     <div class="review-layout">
+      ${renderReviewForm(review)}
       ${renderMonthlyProjectGoals()}
-      <section class="panel">
+      <section class="panel review-summary-panel">
         <div class="panel-heading">
           <div>
             <span class="section-kicker">共有ダッシュボード</span>
@@ -1472,6 +1504,8 @@ function applyReviewLabels() {
   const weeklyTitle = `${reviewWeekStart()} 週（前週）`;
   const reviewHeadings = root.querySelectorAll('.review-layout .panel-heading h2');
   if (reviewMode === 'week' && reviewHeadings[0]) reviewHeadings[0].textContent = weeklyTitle;
+  const summaryHeading = root.querySelector('.review-summary-panel .panel-heading h2');
+  if (reviewMode === 'week' && summaryHeading) summaryHeading.textContent = weeklyTitle;
   const formHeading = root.querySelector('.review-form-panel .panel-heading h2');
   if (formHeading) formHeading.textContent = weeklyTitle;
 }
