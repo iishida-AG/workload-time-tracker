@@ -1069,6 +1069,51 @@ main {
 
 .monthly-goal-panel {
   grid-column: 1 / -1;
+  order: 5;
+}
+
+.monthly-progress-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.monthly-progress-row {
+  display: grid;
+  gap: 5px;
+}
+
+.monthly-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #1d2433;
+  font-size: 12px;
+}
+
+.monthly-progress-line strong,
+.monthly-progress-line span {
+  overflow-wrap: anywhere;
+}
+
+.monthly-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf5;
+}
+
+.monthly-progress-track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2364d2, #1f9d6a);
+}
+
+.monthly-progress-empty {
+  margin: 8px 0 0;
+  color: #667085;
+  font-size: 12px;
 }
 
 .project-goal-heading {
@@ -1362,10 +1407,36 @@ main {
 
 .review-form-panel {
   grid-column: 1 / -1;
+  order: 1;
 }
 
 .review-form-panel ~ .review-form-panel {
   display: none;
+}
+
+.review-summary-panel {
+  order: 2;
+}
+
+.review-layout > .panel:not(.review-form-panel):not(.review-summary-panel):not(.monthly-goal-panel) {
+  order: 3;
+}
+
+.weekly-review-users {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.weekly-review-user {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.weekly-review-user h3 {
+  margin: 0;
+  font-size: 17px;
 }
 
 .segmented {
@@ -1586,6 +1657,7 @@ main {
   .summary-grid,
   .project-goal-grid,
   .monthly-goal-fields,
+  .weekly-review-users,
   .project-count-row,
   .review-form,
   .ratio-card {

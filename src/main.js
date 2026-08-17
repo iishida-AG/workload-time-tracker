@@ -1,4 +1,4 @@
-import { addDays, getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
+import { addDays, getMonthDates, getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
 import { TASK_NATURES } from './domain/presets.js';
 import {
   clearTimelineEntry,
@@ -223,10 +223,15 @@ function reviewWeekStart() {
 }
 
 function currentReview() {
+  return currentReviewFor(activeUserId);
+}
+
+function currentReviewFor(userId = activeUserId) {
   const targetWeek = reviewWeekStart();
   return (
-    state.weeklyReviews.find((review) => review.weekStart === targetWeek) ?? {
+    state.weeklyReviews.find((review) => review.weekStart === targetWeek && (review.userId ?? 'ishida') === userId) ?? {
       weekStart: targetWeek,
+      userId,
       goalReflection: '',
       overtimeCause: '',
       nextPromise: '',
@@ -921,6 +926,85 @@ function monthlyProjectGoalFor(userId, month, projectId) {
   );
 }
 
+function monthWeekStarts(month) {
+  return [...new Set(getMonthDates(month).map((date) => getWeekStart(date)))];
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function targetCountFromText(goalText, taskName) {
+  const text = String(goalText ?? '');
+  if (!text.trim()) return 0;
+  const taskPattern = new RegExp(`${escapeRegExp(taskName)}[^\\d\\n]{0,20}(\\d+)\\s*件`, 'i');
+  const taskMatch = text.match(taskPattern);
+  if (taskMatch) return Number(taskMatch[1]) || 0;
+  return 0;
+}
+
+function monthlyTaskProgressRows(userId, month, projectId) {
+  const monthDates = new Set(getMonthDates(month));
+  const weekStarts = new Set(monthWeekStarts(month));
+  const projectTasks = (state.tasks ?? [])
+    .filter((task) => task.projectId === projectId && task.countable && task.status !== 'deleted')
+    .sort((a, b) => a.order - b.order);
+
+  return projectTasks
+    .map((task) => {
+      const actualCount = (state.dailyCounts ?? [])
+        .filter(
+          (row) =>
+            (row.userId ?? 'ishida') === userId &&
+            row.taskId === task.id &&
+            monthDates.has(row.date)
+        )
+        .reduce((sum, row) => sum + row.count, 0);
+      const targetCount = (state.weeklyProjectGoals ?? [])
+        .filter(
+          (goal) =>
+            (goal.userId ?? 'ishida') === userId &&
+            goal.projectId === projectId &&
+            weekStarts.has(goal.weekStart)
+        )
+        .reduce((sum, goal) => sum + targetCountFromText(goal.goalText, task.name), 0);
+      return {
+        taskId: task.id,
+        taskName: task.name,
+        actualCount,
+        targetCount,
+        progressRate: targetCount > 0 ? Math.min(100, Math.round((actualCount / targetCount) * 100)) : 0
+      };
+    })
+    .filter((row) => row.actualCount > 0 || row.targetCount > 0);
+}
+
+function renderMonthlyTaskProgress(userId, month, projectId) {
+  const rows = monthlyTaskProgressRows(userId, month, projectId);
+  if (rows.length === 0) {
+    return '<p class="monthly-progress-empty">今月の件数進捗はまだありません</p>';
+  }
+  return `
+    <div class="monthly-progress-list">
+      ${rows
+        .map(
+          (row) => `
+            <div class="monthly-progress-row">
+              <div class="monthly-progress-line">
+                <strong>${escapeHtml(row.taskName)}</strong>
+                <span>${row.actualCount}/${row.targetCount || '-'}件</span>
+              </div>
+              <div class="monthly-progress-track" aria-hidden="true">
+                <span style="width:${row.targetCount > 0 ? row.progressRate : 0}%"></span>
+              </div>
+            </div>
+          `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
 function weeklyTodoFor(userId = activeUserId) {
   return (
     (state.weeklyTodos ?? []).find(
@@ -1365,6 +1449,48 @@ function renderReviewForm(review) {
   `;
 }
 
+function renderWeeklyReviewForm() {
+  return `
+      <section class="panel review-form-panel weekly-review-panel">
+        <div class="panel-heading compact">
+          <div>
+            <span class="section-kicker">週次振り返り</span>
+            <h2>${reviewWeekStart()} 週（前週）</h2>
+          </div>
+        </div>
+        <div class="weekly-review-users">
+          ${USERS.map((user) => {
+            const review = currentReviewFor(user.id);
+            const todo = weeklyTodoFor(user.id);
+            return `
+              <article class="weekly-review-user">
+                <h3>${escapeHtml(displayUserLabel(user.id))}</h3>
+                <div class="review-form">
+                  <label>
+                    <span>目標振り返り</span>
+                    <textarea data-review-field="goalReflection" data-user-id="${escapeHtml(user.id)}">${escapeHtml(review.goalReflection)}</textarea>
+                  </label>
+                  <label>
+                    <span>課題感</span>
+                    <textarea data-review-field="overtimeCause" data-user-id="${escapeHtml(user.id)}">${escapeHtml(review.overtimeCause)}</textarea>
+                  </label>
+                  <label>
+                    <span>今週必ずやること</span>
+                    <textarea data-review-field="nextPromise" data-user-id="${escapeHtml(user.id)}" placeholder="- 今週必ずやること&#10;- 確認すること">${escapeHtml(todo.todoText || review.nextPromise)}</textarea>
+                  </label>
+                  <label>
+                    <span>話し合いたいこと</span>
+                    <textarea data-review-field="discussionItems" data-user-id="${escapeHtml(user.id)}" placeholder="- 話し合いたい議題&#10;- 確認したいこと">${escapeHtml(review.discussionItems ?? '')}</textarea>
+                  </label>
+                </div>
+              </article>
+            `;
+          }).join('')}
+        </div>
+      </section>
+  `;
+}
+
 function renderReviewDashboard() {
   const targetWeek = reviewWeekStart();
   const periodStart = reviewMode === 'week' ? targetWeek : `${currentDate.slice(0, 7)}-01`;
@@ -1372,7 +1498,7 @@ function renderReviewDashboard() {
   const review = currentReview();
   return `
     <div class="review-layout">
-      ${renderReviewForm(review)}
+      ${renderWeeklyReviewForm()}
       ${renderMonthlyProjectGoals()}
       <section class="panel review-summary-panel">
         <div class="panel-heading">
@@ -1472,6 +1598,7 @@ function render() {
   enableShortcutDragging();
   applyAppBranding();
   applyReviewLabels();
+  applyMonthlyProgress();
 }
 
 function enableShortcutDragging() {
@@ -1494,11 +1621,13 @@ function applyAppBranding() {
 function applyReviewLabels() {
   const labels = [
     ['overtimeCause', '課題感'],
-    ['nextPromise', 'どうすべきか']
+    ['nextPromise', '今週必ずやること']
   ];
   labels.forEach(([field, labelText]) => {
-    const label = root.querySelector(`[data-review-field="${field}"]`)?.closest('label')?.querySelector('span');
-    if (label) label.textContent = labelText;
+    root.querySelectorAll(`[data-review-field="${field}"]`).forEach((fieldElement) => {
+      const label = fieldElement.closest('label')?.querySelector('span');
+      if (label) label.textContent = labelText;
+    });
   });
   if (activeTab !== 'review') return;
   const weeklyTitle = `${reviewWeekStart()} 週（前週）`;
@@ -1508,6 +1637,19 @@ function applyReviewLabels() {
   if (reviewMode === 'week' && summaryHeading) summaryHeading.textContent = weeklyTitle;
   const formHeading = root.querySelector('.review-form-panel .panel-heading h2');
   if (formHeading) formHeading.textContent = weeklyTitle;
+}
+
+function applyMonthlyProgress() {
+  root.querySelectorAll('[data-field="monthly-project-goal"]').forEach((textarea) => {
+    const label = textarea.closest('label');
+    if (!label || label.querySelector('.monthly-progress-list, .monthly-progress-empty')) return;
+    const labelText = label.querySelector('span');
+    if (labelText) labelText.textContent = displayUserLabel(textarea.dataset.userId);
+    textarea.insertAdjacentHTML(
+      'afterend',
+      renderMonthlyTaskProgress(textarea.dataset.userId, currentDate.slice(0, 7), textarea.dataset.projectId)
+    );
+  });
 }
 
 function handleClick(event) {
@@ -1784,9 +1926,14 @@ function handleChange(event) {
 function handleInput(event) {
   const target = event.target;
   if (target.dataset.reviewField) {
-    commit(upsertReview(state, reviewWeekStart(), { [target.dataset.reviewField]: target.value }), {
-      render: false
-    });
+    const reviewUserId = target.dataset.userId ?? activeUserId;
+    const patch = { userId: reviewUserId, [target.dataset.reviewField]: target.value };
+    const reviewedState = upsertReview(state, reviewWeekStart(), patch);
+    const nextState =
+      target.dataset.reviewField === 'nextPromise'
+        ? upsertWeeklyTodo(reviewedState, weekStart(), reviewUserId, target.value)
+        : reviewedState;
+    commit(nextState, { render: false });
     return;
   }
   if (target.dataset.field === 'weekly-project-goal') {

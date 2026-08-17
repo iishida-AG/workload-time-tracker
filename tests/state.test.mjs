@@ -245,6 +245,16 @@ test('upsertReview stores discussion items as newline bullet text', () => {
   assert.equal(next.weeklyReviews[0].discussionItems, discussionItems);
 });
 
+test('upsertReview stores review forms per user', () => {
+  const state = createAppState('2026-08-03');
+  const ishida = upsertReview(state, '2026-08-03', { userId: 'ishida', goalReflection: 'Ishida review' });
+  const tanoue = upsertReview(ishida, '2026-08-03', { userId: 'tanoue', goalReflection: 'Tanoue review' });
+
+  assert.equal(tanoue.weeklyReviews.length, 2);
+  assert.equal(tanoue.weeklyReviews.find((review) => review.userId === 'ishida').goalReflection, 'Ishida review');
+  assert.equal(tanoue.weeklyReviews.find((review) => review.userId === 'tanoue').goalReflection, 'Tanoue review');
+});
+
 test('weekly todos are stored per week and user with checkbox state', () => {
   const state = createAppState('2026-08-10');
   const next = upsertWeeklyTodo(state, '2026-08-10', 'tanoue', '- Confirm invoices\n- Call client');

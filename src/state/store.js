@@ -90,6 +90,7 @@ export function normalizeState(state, defaultUserId = 'ishida') {
     })),
     weeklyReviews: (state.weeklyReviews ?? []).map((review) => ({
       discussionItems: '',
+      userId: defaultUserId,
       ...review
     })),
     weeklyTodos: (state.weeklyTodos ?? []).map((todo) => ({
@@ -374,9 +375,13 @@ export function upsertWeeklyGoal(state, weekStart, taskId, targetCount) {
 }
 
 export function upsertReview(state, weekStart, patch) {
-  const existing = state.weeklyReviews.find((review) => review.weekStart === weekStart);
+  const userId = patch.userId ?? 'ishida';
+  const existing = state.weeklyReviews.find(
+    (review) => review.weekStart === weekStart && (review.userId ?? 'ishida') === userId
+  );
   const nextReview = {
     weekStart,
+    userId,
     goalReflection: patch.goalReflection ?? existing?.goalReflection ?? '',
     overtimeCause: patch.overtimeCause ?? existing?.overtimeCause ?? '',
     nextPromise: patch.nextPromise ?? existing?.nextPromise ?? '',
@@ -384,7 +389,9 @@ export function upsertReview(state, weekStart, patch) {
     updatedAt: new Date().toISOString()
   };
   const weeklyReviews = existing
-    ? state.weeklyReviews.map((review) => (review.weekStart === weekStart ? nextReview : review))
+    ? state.weeklyReviews.map((review) =>
+        review.weekStart === weekStart && (review.userId ?? 'ishida') === userId ? nextReview : review
+      )
     : [...state.weeklyReviews, nextReview];
   return { ...state, weeklyReviews };
 }
