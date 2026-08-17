@@ -4,7 +4,7 @@ import {
   formatDailyCategorySummaryText,
   formatDailyScheduleText,
   getImprovementPromiseForWeek
-} from '../domain/metrics.js?v=20260817-plan-prompt-compact-v1';
+} from '../domain/metrics.js?v=20260817-home-link-v1';
 import { getPartnerUserId } from '../domain/users.js';
 import { getTimelineSetting } from '../state/store.js';
 

@@ -18,9 +18,9 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260817-plan-prompt-compact-v1';
+} from './domain/metrics.js?v=20260817-home-link-v1';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260817-plan-prompt-compact-v1';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
@@ -75,6 +75,7 @@ let undoStack = [];
 let dismissedPlanPromptKeys = new Set();
 let planPromptTimer = null;
 
+const WORKSPACE_HOME_URL = 'https://ishida-ai-tool-dev.web.app/';
 const EXPENSES_URL = 'https://ishida-ai-tool-dev.web.app/expenses';
 const APP_NAME = '業務管理ツール';
 const UNDO_LIMIT = 30;
@@ -701,6 +702,9 @@ function renderHeader(view) {
             .join('')}
           <a class="tab-button external-tab-link" href="${EXPENSES_URL}" target="_blank" rel="noopener noreferrer">
             ${icon('wallet')}<span>経費</span>
+          </a>
+          <a class="tab-button external-tab-link" href="${WORKSPACE_HOME_URL}" target="_blank" rel="noopener noreferrer">
+            ${icon('target')}<span>AIツール</span>
           </a>
         </nav>
       </div>
