@@ -18,9 +18,9 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260817-plan-prompt-task-v1';
+} from './domain/metrics.js?v=20260817-plan-prompt-compact-v1';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260817-plan-prompt-task-v1';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260817-plan-prompt-compact-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
@@ -1818,7 +1818,13 @@ function applyPlanPromptControls() {
   if (!prompt) return;
   const customButton = prompt.querySelector('[data-action="plan-prompt-custom"]');
   const noteInput = prompt.querySelector('[data-field="plan-prompt-note"]');
+  const minutesInput = prompt.querySelector('[data-field="plan-prompt-minutes"]');
   if (customButton) customButton.textContent = '変更';
+  if (minutesInput) {
+    minutesInput.type = 'hidden';
+    const minutesLabel = minutesInput.closest('label');
+    if (minutesLabel) minutesLabel.style.display = 'none';
+  }
   if (noteInput) {
     noteInput.placeholder = '変更内容を記入';
     noteInput.setAttribute('aria-label', '変更内容');

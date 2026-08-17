@@ -649,7 +649,7 @@ main {
 
 .plan-prompt {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  grid-template-columns: minmax(140px, 0.55fr) minmax(0, 2.45fr);
   gap: 12px;
   align-items: center;
   border-color: #f5c475;
@@ -668,7 +668,7 @@ main {
 
 .plan-prompt-controls {
   display: grid;
-  grid-template-columns: auto auto minmax(130px, 0.9fr) auto auto auto minmax(160px, 1fr) 32px;
+  grid-template-columns: auto minmax(120px, 0.8fr) auto auto auto minmax(190px, 1.2fr) 32px;
   gap: 6px;
   align-items: center;
 }
@@ -705,6 +705,11 @@ main {
 .plan-prompt-task-field select {
   width: 100%;
   min-width: 0;
+}
+
+.plan-prompt-main strong,
+.plan-prompt-main span {
+  overflow-wrap: anywhere;
 }
 
 .actual-minutes-input,
