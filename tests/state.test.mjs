@@ -14,6 +14,8 @@ import {
   upsertMonthlyProjectGoal,
   upsertReview,
   upsertTimelineSetting,
+  toggleWeeklyTodoItem,
+  upsertWeeklyTodo,
   upsertWeeklyProjectGoal,
   upsertWeeklyGoal
 } from '../src/state/store.js';
@@ -241,6 +243,19 @@ test('upsertReview stores discussion items as newline bullet text', () => {
   const next = upsertReview(state, '2026-08-03', { discussionItems });
 
   assert.equal(next.weeklyReviews[0].discussionItems, discussionItems);
+});
+
+test('weekly todos are stored per week and user with checkbox state', () => {
+  const state = createAppState('2026-08-10');
+  const next = upsertWeeklyTodo(state, '2026-08-10', 'tanoue', '- Confirm invoices\n- Call client');
+  const checked = toggleWeeklyTodoItem(next, '2026-08-10', 'tanoue', 1, true);
+
+  assert.equal(checked.weeklyTodos[0].todoText, '- Confirm invoices\n- Call client');
+  assert.deepEqual(checked.weeklyTodos[0].checkedItems, { 1: true });
+  assert.equal(
+    toggleWeeklyTodoItem(checked, '2026-08-10', 'ishida', 0, true).weeklyTodos.find((todo) => todo.userId === 'tanoue').checkedItems[1],
+    true
+  );
 });
 
 test('moveProjectOrder swaps a project with its neighbor', () => {

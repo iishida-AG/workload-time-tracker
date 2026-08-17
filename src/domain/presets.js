@@ -54,6 +54,7 @@ export function createInitialState(today) {
     weeklyReviews: [],
     timelineSettings: [],
     weeklyProjectGoals: [],
-    monthlyProjectGoals: []
+    monthlyProjectGoals: [],
+    weeklyTodos: []
   };
 }

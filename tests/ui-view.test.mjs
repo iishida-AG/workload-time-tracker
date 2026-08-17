@@ -7,6 +7,7 @@ import {
   getUserIdFromUrl,
   isAppUndoShortcut,
   nextSelectedTaskId,
+  reviewTargetWeekStart,
   selectedTaskAfterTimelineUse
 } from '../src/main.js';
 
@@ -141,6 +142,10 @@ test('nextSelectedTaskId clears the selection when the selected shortcut is pres
 test('selectedTaskAfterTimelineUse returns the shortcut palette to erase mode', () => {
   assert.equal(selectedTaskAfterTimelineUse('proposal'), '');
   assert.equal(selectedTaskAfterTimelineUse(''), '');
+});
+
+test('reviewTargetWeekStart points weekly reviews to the previous week', () => {
+  assert.equal(reviewTargetWeekStart('2026-08-10'), '2026-08-03');
 });
 
 test('isAppUndoShortcut handles Ctrl+Z outside text inputs only', () => {

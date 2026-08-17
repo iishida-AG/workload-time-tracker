@@ -1,4 +1,4 @@
-import { getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
+import { addDays, getTimelineHours, getWeekStart, toDateKey } from './domain/calendar.js';
 import { TASK_NATURES } from './domain/presets.js';
 import {
   clearTimelineEntry,
@@ -36,9 +36,11 @@ import {
   moveTaskOrder,
   updateProject,
   updateTask,
+  toggleWeeklyTodoItem,
   upsertMonthlyProjectGoal,
   upsertReview,
   upsertTimelineSetting,
+  upsertWeeklyTodo,
   upsertWeeklyProjectGoal
 } from './state/store.js';
 
@@ -58,6 +60,7 @@ let reviewMode = 'week';
 let copyFormat = 'timeline';
 let activeUserId = 'ishida';
 let focusedCell = null;
+let todoEditorUserId = 'ishida';
 let adapter;
 let authController;
 let authState = { status: 'loading', user: null, error: '' };
@@ -109,6 +112,10 @@ export function nextSelectedTaskId(currentTaskId, clickedTaskId) {
 
 export function selectedTaskAfterTimelineUse() {
   return '';
+}
+
+export function reviewTargetWeekStart(dateKey) {
+  return addDays(getWeekStart(dateKey), -7);
 }
 
 export function isAppUndoShortcut(event) {
@@ -211,10 +218,15 @@ function weekStart() {
   return getWeekStart(currentDate);
 }
 
+function reviewWeekStart() {
+  return reviewTargetWeekStart(currentDate);
+}
+
 function currentReview() {
+  const targetWeek = reviewWeekStart();
   return (
-    state.weeklyReviews.find((review) => review.weekStart === weekStart()) ?? {
-      weekStart: weekStart(),
+    state.weeklyReviews.find((review) => review.weekStart === targetWeek) ?? {
+      weekStart: targetWeek,
       goalReflection: '',
       overtimeCause: '',
       nextPromise: '',
@@ -909,6 +921,72 @@ function monthlyProjectGoalFor(userId, month, projectId) {
   );
 }
 
+function weeklyTodoFor(userId = activeUserId) {
+  return (
+    (state.weeklyTodos ?? []).find(
+      (todo) => todo.weekStart === weekStart() && (todo.userId ?? 'ishida') === userId
+    ) ?? { weekStart: weekStart(), userId, todoText: '', checkedItems: {} }
+  );
+}
+
+function parseTodoLines(todoText) {
+  return String(todoText ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-・]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function renderTodoUserOptions(selectedUserId) {
+  return USERS.map(
+    (user) =>
+      `<option value="${escapeHtml(user.id)}" ${user.id === selectedUserId ? 'selected' : ''}>${escapeHtml(displayUserLabel(user.id))}</option>`
+  ).join('');
+}
+
+function renderWeeklyTodosPanel() {
+  const editorTodo = weeklyTodoFor(todoEditorUserId);
+  const activeTodo = weeklyTodoFor(activeUserId);
+  const lines = parseTodoLines(activeTodo.todoText);
+  return `
+    <section class="weekly-todo-panel">
+      <div class="panel-heading project-goal-heading">
+        <div>
+          <span class="section-kicker">今週やるべきこと</span>
+          <h2>${escapeHtml(weekStart())} 週 / ${escapeHtml(displayUserLabel(activeUserId))}</h2>
+        </div>
+      </div>
+      <div class="weekly-todo-card">
+        <div class="weekly-todo-list">
+          ${
+            lines.length === 0
+              ? '<p class="empty-state compact">今週やるべきことは未設定です</p>'
+              : lines
+                  .map(
+                    (line, index) => `
+                      <label class="weekly-todo-item">
+                        <input type="checkbox" data-field="weekly-todo-check" data-user-id="${escapeHtml(activeUserId)}" data-item-index="${index}" ${activeTodo.checkedItems?.[index] ? 'checked' : ''} />
+                        <span>${escapeHtml(line)}</span>
+                      </label>
+                    `
+                  )
+                  .join('')
+          }
+        </div>
+        <div class="weekly-todo-editor">
+          <label>
+            <span>入力対象</span>
+            <select data-field="weekly-todo-user">${renderTodoUserOptions(todoEditorUserId)}</select>
+          </label>
+          <label>
+            <span>箇条書き入力</span>
+            <textarea data-field="weekly-todo-text" data-user-id="${escapeHtml(todoEditorUserId)}" placeholder="- 今週やること&#10;- 確認すること">${escapeHtml(editorTodo.todoText)}</textarea>
+          </label>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 function renderProjectTaskCountsLegacy(projectId, tasks) {
   const projectTasks = tasks.filter((task) => task.projectId === projectId);
   if (projectTasks.length === 0) {
@@ -1078,6 +1156,7 @@ function renderDashboard(view) {
       </div>
       ${renderShortcutPalette(view)}
     </div>
+    ${renderWeeklyTodosPanel()}
     ${renderWeeklyProjectGoals(view)}
   `;
 }
@@ -1256,7 +1335,8 @@ function renderPie(metrics) {
 }
 
 function renderReviewDashboard() {
-  const periodStart = reviewMode === 'week' ? weekStart() : `${currentDate.slice(0, 7)}-01`;
+  const targetWeek = reviewWeekStart();
+  const periodStart = reviewMode === 'week' ? targetWeek : `${currentDate.slice(0, 7)}-01`;
   const metrics = computeReviewMetrics(state, periodStart, { periodMode: reviewMode, userId: activeUserId });
   const review = currentReview();
   return `
@@ -1359,6 +1439,7 @@ function render() {
   `;
   enableShortcutDragging();
   applyAppBranding();
+  applyReviewLabels();
 }
 
 function enableShortcutDragging() {
@@ -1378,6 +1459,23 @@ function applyAppBranding() {
   if (headerKicker) headerKicker.textContent = '業務管理';
 }
 
+function applyReviewLabels() {
+  const labels = [
+    ['overtimeCause', '課題感'],
+    ['nextPromise', 'どうすべきか']
+  ];
+  labels.forEach(([field, labelText]) => {
+    const label = root.querySelector(`[data-review-field="${field}"]`)?.closest('label')?.querySelector('span');
+    if (label) label.textContent = labelText;
+  });
+  if (activeTab !== 'review') return;
+  const weeklyTitle = `${reviewWeekStart()} 週（前週）`;
+  const reviewHeadings = root.querySelectorAll('.review-layout .panel-heading h2');
+  if (reviewMode === 'week' && reviewHeadings[0]) reviewHeadings[0].textContent = weeklyTitle;
+  const formHeading = root.querySelector('.review-form-panel .panel-heading h2');
+  if (formHeading) formHeading.textContent = weeklyTitle;
+}
+
 function handleClick(event) {
   const button = event.target.closest('[data-action]');
   if (!button) return;
@@ -1389,6 +1487,7 @@ function handleClick(event) {
   }
   if (action === 'switch-user') {
     activeUserId = button.dataset.userId;
+    todoEditorUserId = activeUserId;
     focusedCell = null;
     replaceCurrentUserUrl(activeUserId);
     render();
@@ -1584,6 +1683,21 @@ function handleChange(event) {
     focusedCell = null;
     render();
   }
+  if (target.dataset.field === 'weekly-todo-user') {
+    todoEditorUserId = target.value;
+    render();
+  }
+  if (target.dataset.field === 'weekly-todo-check') {
+    commit(
+      toggleWeeklyTodoItem(
+        state,
+        weekStart(),
+        target.dataset.userId,
+        Number(target.dataset.itemIndex),
+        target.checked
+      )
+    );
+  }
   if (target.dataset.field === 'start-hour' || target.dataset.field === 'end-hour') {
     const current = getTimelineSetting(state, activeUserId, currentDate);
     const nextStart =
@@ -1635,6 +1749,42 @@ function handleChange(event) {
 
 function handleInput(event) {
   const target = event.target;
+  if (target.dataset.reviewField) {
+    commit(upsertReview(state, reviewWeekStart(), { [target.dataset.reviewField]: target.value }), {
+      render: false
+    });
+    return;
+  }
+  if (target.dataset.field === 'weekly-project-goal') {
+    commit(
+      upsertWeeklyProjectGoal(
+        state,
+        activeUserId,
+        weekStart(),
+        target.dataset.projectId,
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'monthly-project-goal') {
+    commit(
+      upsertMonthlyProjectGoal(
+        state,
+        target.dataset.userId,
+        currentDate.slice(0, 7),
+        target.dataset.projectId,
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'weekly-todo-text') {
+    commit(upsertWeeklyTodo(state, weekStart(), target.dataset.userId, target.value), { render: false });
+    return;
+  }
   if (target.dataset.field === 'timeline-note') {
     if (event.isComposing) {
       return;
@@ -1804,6 +1954,7 @@ function boot() {
   root = document.getElementById('root');
   currentDate = todayKey();
   activeUserId = getUserIdFromUrl(window.location.href, activeUserId);
+  todoEditorUserId = activeUserId;
   authController = createAuthController({ firebaseConfig });
   root.addEventListener('click', handleClick);
   root.addEventListener('focusin', handleFocusIn);

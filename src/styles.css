@@ -983,6 +983,90 @@ main {
   margin-top: 16px;
 }
 
+.weekly-todo-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.weekly-todo-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.weekly-todo-list {
+  display: grid;
+  gap: 8px;
+}
+
+.weekly-todo-item {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #1d2433;
+  font-weight: 700;
+}
+
+.weekly-todo-item input {
+  flex: 0 0 auto;
+  margin-top: 3px;
+}
+
+.weekly-todo-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.weekly-todo-editor {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.weekly-todo-editor label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.weekly-todo-editor label span {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.weekly-todo-editor select,
+.weekly-todo-editor textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d2433;
+}
+
+.weekly-todo-editor select {
+  height: 38px;
+  padding: 0 10px;
+}
+
+.weekly-todo-editor textarea {
+  min-height: 82px;
+  padding: 9px 10px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
 .monthly-goal-panel {
   grid-column: 1 / -1;
 }
@@ -1506,6 +1590,10 @@ main {
 
   .project-goal-card-header {
     flex-direction: column;
+  }
+
+  .weekly-todo-editor {
+    grid-template-columns: 1fr;
   }
 
   .project-actual-count {

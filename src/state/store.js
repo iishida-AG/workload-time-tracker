@@ -91,6 +91,12 @@ export function normalizeState(state, defaultUserId = 'ishida') {
     weeklyReviews: (state.weeklyReviews ?? []).map((review) => ({
       discussionItems: '',
       ...review
+    })),
+    weeklyTodos: (state.weeklyTodos ?? []).map((todo) => ({
+      checkedItems: {},
+      userId: defaultUserId,
+      todoText: '',
+      ...todo
     }))
   };
 }
@@ -133,6 +139,57 @@ export function upsertWeeklyProjectGoal(state, userId, weekStart, projectId, goa
             : item
         )
       : [...(state.weeklyProjectGoals ?? []), row]
+  };
+}
+
+export function upsertWeeklyTodo(state, weekStart, userId, todoText) {
+  const exists = (state.weeklyTodos ?? []).some(
+    (row) => row.weekStart === weekStart && row.userId === userId
+  );
+  const existing = (state.weeklyTodos ?? []).find(
+    (row) => row.weekStart === weekStart && row.userId === userId
+  );
+  const row = {
+    weekStart,
+    userId,
+    todoText,
+    checkedItems: existing?.checkedItems ?? {}
+  };
+  return {
+    ...state,
+    weeklyTodos: exists
+      ? state.weeklyTodos.map((item) =>
+          item.weekStart === weekStart && item.userId === userId ? row : item
+        )
+      : [...(state.weeklyTodos ?? []), row]
+  };
+}
+
+export function toggleWeeklyTodoItem(state, weekStart, userId, itemIndex, checked) {
+  const exists = (state.weeklyTodos ?? []).some(
+    (row) => row.weekStart === weekStart && row.userId === userId
+  );
+  const update = (item) => ({
+    ...item,
+    checkedItems: {
+      ...(item.checkedItems ?? {}),
+      [itemIndex]: Boolean(checked)
+    }
+  });
+  if (!exists) {
+    return {
+      ...state,
+      weeklyTodos: [
+        ...(state.weeklyTodos ?? []),
+        { weekStart, userId, todoText: '', checkedItems: { [itemIndex]: Boolean(checked) } }
+      ]
+    };
+  }
+  return {
+    ...state,
+    weeklyTodos: state.weeklyTodos.map((item) =>
+      item.weekStart === weekStart && item.userId === userId ? update(item) : item
+    )
   };
 }
 
