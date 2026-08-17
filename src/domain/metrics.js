@@ -374,7 +374,10 @@ export function applyPlanNotificationResponse(state, options) {
   const targetMinutes = targetHour * 60 + startMinute;
   const mode = options.mode ?? 'ok';
   const previous = mode === 'continue' ? findPreviousActualItem(state, userId, date, targetMinutes) : null;
-  const source = previous ?? planItem;
+  const source =
+    mode === 'custom' && options.taskId
+      ? { ...planItem, taskId: options.taskId }
+      : previous ?? planItem;
   const note = mode === 'custom' ? String(options.note ?? '').trim() : source.note;
   if (mode === 'custom' && !note) return state;
 

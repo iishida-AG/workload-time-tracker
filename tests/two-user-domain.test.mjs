@@ -293,6 +293,40 @@ test('applyPlanNotificationResponse can copy plan, continue previous actual, or 
   assert.equal(formatDailyScheduleText(custom, 'dayActuals', 'ishida', '2026-08-05', 10, 12), '10\u664200\u5206-10\u664245\u5206 previous\n10\u664230\u5206-10\u664245\u5206 other work');
 });
 
+test('applyPlanNotificationResponse can use a selected task for changed work', () => {
+  const timedState = {
+    ...state,
+    dayPlans: [
+      {
+        userId: 'tanoue',
+        date: '2026-08-05',
+        hour: 10,
+        items: [{ taskId: 'proposal', note: 'planned', minutes: 30, startMinute: 0 }]
+      }
+    ],
+    dayActuals: []
+  };
+
+  const changed = applyPlanNotificationResponse(timedState, {
+    userId: 'tanoue',
+    date: '2026-08-05',
+    hour: 10,
+    itemIndex: 0,
+    mode: 'custom',
+    taskId: 'mail',
+    note: 'changed work',
+    minutes: 30,
+    startMinute: 0
+  });
+
+  assert.deepEqual(changed.dayActuals[0].items[0], {
+    taskId: 'mail',
+    note: 'changed work',
+    minutes: 30,
+    startMinute: 0
+  });
+});
+
 test('formatDailyScheduleText keeps single-digit hours unpadded', () => {
   const nineState = {
     ...state,

@@ -18,9 +18,9 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260817-business-tool-plan-prompt-v1';
+} from './domain/metrics.js?v=20260817-plan-prompt-task-v1';
 import { getUserLabel, USERS } from './domain/users.js';
-import { createDashboardViewModel } from './ui/view-model.js?v=20260817-business-tool-plan-prompt-v1';
+import { createDashboardViewModel } from './ui/view-model.js?v=20260817-plan-prompt-task-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260807-authfix-v2';
@@ -490,6 +490,10 @@ function renderPlanPrompt(view) {
           <input type="number" min="0" step="5" value="${escapeHtml(prompt.item.minutes)}" data-field="plan-prompt-minutes" />
         </label>
         <input type="text" data-field="plan-prompt-note" placeholder="予定と違う場合の内容" />
+        <label class="plan-prompt-task-field">
+          <span>小分類</span>
+          <select data-field="plan-prompt-task">${renderPlanPromptTaskOptions(view.activeTasks, prompt.item.taskId)}</select>
+        </label>
         <button class="primary-button" data-action="plan-prompt-ok" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">OK</button>
         <button class="ghost-button" data-action="plan-prompt-continue" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">継続</button>
         <button class="ghost-button" data-action="plan-prompt-custom" data-prompt-key="${escapeHtml(prompt.key)}" data-hour="${prompt.entry.hour}" data-item-index="${prompt.index}">自由入力</button>
@@ -585,6 +589,15 @@ function renderStartMinuteOptions(selectedMinute) {
     .map(
       (minute) =>
         `<option value="${minute}" ${minute === selectedMinute ? 'selected' : ''}>${String(minute).padStart(2, '0')}分</option>`
+    )
+    .join('');
+}
+
+function renderPlanPromptTaskOptions(tasks, selectedTaskId) {
+  return tasks
+    .map(
+      (task) =>
+        `<option value="${escapeHtml(task.id)}" ${task.id === selectedTaskId ? 'selected' : ''}>${escapeHtml(task.name)}</option>`
     )
     .join('');
 }
@@ -1934,6 +1947,7 @@ function handleClick(event) {
     const startMinute = Number(panel?.querySelector('[data-field="plan-prompt-minute"]')?.value ?? 0);
     const minutes = Number(panel?.querySelector('[data-field="plan-prompt-minutes"]')?.value ?? 60);
     const note = panel?.querySelector('[data-field="plan-prompt-note"]')?.value ?? '';
+    const taskId = panel?.querySelector('[data-field="plan-prompt-task"]')?.value ?? '';
     const key = button.dataset.promptKey;
     if (key) dismissedPlanPromptKeys.add(key);
     commit(
@@ -1944,6 +1958,7 @@ function handleClick(event) {
         itemIndex: Number(button.dataset.itemIndex),
         mode,
         note,
+        taskId: mode === 'custom' ? taskId : undefined,
         startHour,
         startMinute,
         minutes

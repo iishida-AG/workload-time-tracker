@@ -668,7 +668,7 @@ main {
 
 .plan-prompt-controls {
   display: grid;
-  grid-template-columns: auto auto auto auto auto minmax(160px, 1fr) 32px;
+  grid-template-columns: auto auto minmax(130px, 0.9fr) auto auto auto minmax(160px, 1fr) 32px;
   gap: 6px;
   align-items: center;
 }
@@ -696,6 +696,15 @@ main {
   width: 100%;
   min-width: 0;
   padding: 0 8px;
+}
+
+.plan-prompt-task-field {
+  min-width: 0;
+}
+
+.plan-prompt-task-field select {
+  width: 100%;
+  min-width: 0;
 }
 
 .actual-minutes-input,
