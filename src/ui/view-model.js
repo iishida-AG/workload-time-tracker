@@ -65,6 +65,11 @@ function buildDailyReportText(state, userId, date, timelineSetting) {
   return userId === 'tanoue' ? buildTanoueDailyReport(scheduleText) : buildIshidaDailyReport(scheduleText);
 }
 
+function isShortcutVisibleForUser(task, userId) {
+  const visibility = task.shortcutVisibility ?? 'both';
+  return visibility === 'both' || visibility === userId;
+}
+
 export function createDashboardViewModel(state, date, userId = 'ishida') {
   const weekStart = getWeekStart(date);
   const partnerUserId = getPartnerUserId(userId);
@@ -74,7 +79,9 @@ export function createDashboardViewModel(state, date, userId = 'ishida') {
   const dailyReportText = buildDailyReportText(state, userId, date, timelineSetting);
   const partnerDailyReportText = buildDailyReportText(state, partnerUserId, date, partnerTimelineSetting);
   const activeProjectIds = new Set((state.projects ?? []).filter((project) => project.status === 'active').map((project) => project.id));
-  const activeTasks = state.tasks.filter((task) => task.status === 'active' && activeProjectIds.has(task.projectId)).sort((a, b) => a.order - b.order);
+  const activeTasks = state.tasks
+    .filter((task) => task.status === 'active' && activeProjectIds.has(task.projectId) && isShortcutVisibleForUser(task, userId))
+    .sort((a, b) => a.order - b.order);
   const countableTasks = activeTasks.filter((task) => task.countable);
   const goalProgress = metrics.goalRows.length === 0 ? 0 : Math.round(metrics.goalRows.reduce((sum, row) => sum + row.progressRate, 0) / metrics.goalRows.length);
 

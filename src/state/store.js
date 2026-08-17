@@ -34,6 +34,10 @@ function ensureDefaultRows(rows, defaultRows) {
   return [...rows, ...defaultRows.filter((row) => !ids.has(row.id))];
 }
 
+function normalizeShortcutVisibility(value) {
+  return ['ishida', 'tanoue', 'both'].includes(value) ? value : 'both';
+}
+
 export function createAppState(today = new Date().toISOString().slice(0, 10)) {
   return createInitialState(getWeekStart(today));
 }
@@ -43,7 +47,8 @@ export function normalizeState(state, defaultUserId = 'ishida') {
   const tasks = ensureDefaultRows(
     (state.tasks ?? []).map((task) => ({
       description: '',
-      ...task
+      ...task,
+      shortcutVisibility: normalizeShortcutVisibility(task.shortcutVisibility)
     })),
     DEFAULT_TASKS
   );
@@ -212,6 +217,7 @@ export function addTask(state, taskInput) {
         description: taskInput.description?.trim() ?? '',
         nature: taskInput.nature,
         countable: Boolean(taskInput.countable),
+        shortcutVisibility: normalizeShortcutVisibility(taskInput.shortcutVisibility),
         status: 'active',
         order: nextOrder(state.tasks)
       }
@@ -229,7 +235,11 @@ export function updateTask(state, taskId, patch) {
             ...patch,
             name: patch.name === undefined ? task.name : patch.name.trim(),
             description: patch.description === undefined ? task.description ?? '' : patch.description.trim(),
-            countable: patch.countable === undefined ? task.countable : Boolean(patch.countable)
+            countable: patch.countable === undefined ? task.countable : Boolean(patch.countable),
+            shortcutVisibility:
+              patch.shortcutVisibility === undefined
+                ? normalizeShortcutVisibility(task.shortcutVisibility)
+                : normalizeShortcutVisibility(patch.shortcutVisibility)
           }
         : task
     )

@@ -1117,7 +1117,7 @@ main {
 
 .task-row {
   display: grid;
-  grid-template-columns: 68px minmax(120px, 1.1fr) minmax(150px, 1.2fr) minmax(100px, 0.8fr) minmax(105px, 0.8fr) 58px 82px 78px;
+  grid-template-columns: 68px minmax(110px, 1fr) minmax(140px, 1.1fr) minmax(96px, 0.75fr) minmax(96px, 0.75fr) minmax(82px, 0.65fr) 54px 82px 78px;
   gap: 6px;
   align-items: center;
   padding: 8px;

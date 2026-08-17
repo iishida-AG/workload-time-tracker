@@ -62,9 +62,16 @@ let authState = { status: 'loading', user: null, error: '' };
 let unsubscribeState = null;
 let unsubscribeAuth = null;
 let suppressedAdapterRenderCount = 0;
+let undoStack = [];
 
 const EXPENSES_URL = 'https://ishida-ai-tool-dev.web.app/expenses';
+const UNDO_LIMIT = 30;
 const validUserIds = new Set(USERS.map((user) => user.id));
+const shortcutVisibilityLabels = {
+  both: '両方',
+  ishida: '石田',
+  tanoue: '田上'
+};
 
 export function getUserIdFromUrl(url, fallbackUserId = 'ishida') {
   try {
@@ -93,6 +100,12 @@ export function getCopyTextKey(label) {
 
 export function nextSelectedTaskId(currentTaskId, clickedTaskId) {
   return currentTaskId === clickedTaskId ? '' : clickedTaskId;
+}
+
+export function isAppUndoShortcut(event) {
+  const key = String(event.key ?? '').toLowerCase();
+  const targetIsTextInput = Boolean(event.target?.closest?.('input, textarea, select, [contenteditable="true"]'));
+  return key === 'z' && !event.shiftKey && (event.ctrlKey || event.metaKey) && !targetIsTextInput;
 }
 
 function currentPageUrl() {
@@ -203,11 +216,13 @@ function currentReview() {
 
 function commit(nextState, options = {}) {
   const shouldRender = options.render !== false;
+  const shouldRecordHistory = options.history !== false && shouldRender && state && nextState !== state;
+  if (shouldRecordHistory) {
+    undoStack = [...undoStack.slice(-UNDO_LIMIT + 1), state];
+  }
   state = nextState;
   if (adapter) {
-    if (adapter.mode === 'local' || !shouldRender) {
-      suppressedAdapterRenderCount += 1;
-    }
+    suppressedAdapterRenderCount += 1;
     const result = adapter.save(nextState);
     if (result && typeof result.catch === 'function') {
       result.catch((error) => console.error('Failed to save state', error));
@@ -235,6 +250,7 @@ function subscribeSharedState() {
       suppressedAdapterRenderCount -= 1;
       return;
     }
+    undoStack = [];
     render();
   });
   if (subscription && typeof subscription.then === 'function') {
@@ -271,6 +287,15 @@ function renderNatureOptions(selectedNature) {
     (nature) =>
       `<option value="${escapeHtml(nature.id)}" ${nature.id === selectedNature ? 'selected' : ''}>${escapeHtml(nature.label)}</option>`
   ).join('');
+}
+
+function renderShortcutVisibilityOptions(selectedVisibility = 'both') {
+  return Object.entries(shortcutVisibilityLabels)
+    .map(
+      ([value, label]) =>
+        `<option value="${escapeHtml(value)}" ${value === selectedVisibility ? 'selected' : ''}>${escapeHtml(label)}</option>`
+    )
+    .join('');
 }
 
 function entryFor(collectionName, hour, userId = activeUserId) {
@@ -982,6 +1007,10 @@ function renderTaskForm(formId, title, compact = false) {
         <input name="countable" type="checkbox" checked />
         <span>件数管理あり</span>
       </label>
+      <label>
+        <span>表示先</span>
+        <select name="shortcutVisibility">${renderShortcutVisibilityOptions('both')}</select>
+      </label>
       <button class="primary-button" type="submit">${icon('plus')}<span>追加</span></button>
     </form>
   `;
@@ -1056,6 +1085,7 @@ function renderMasterData() {
                           <textarea class="task-description-input" data-task-field="description" data-task-id="${escapeHtml(task.id)}" placeholder="説明コメントを自由に記入">${escapeHtml(task.description ?? '')}</textarea>
                           <select data-task-field="projectId" data-task-id="${escapeHtml(task.id)}">${renderProjectOptions(task.projectId)}</select>
                           <select data-task-field="nature" data-task-id="${escapeHtml(task.id)}">${renderNatureOptions(task.nature)}</select>
+                          <select data-task-field="shortcutVisibility" data-task-id="${escapeHtml(task.id)}" aria-label="表示先">${renderShortcutVisibilityOptions(task.shortcutVisibility ?? 'both')}</select>
                           <label class="checkbox-line small">
                             <input type="checkbox" ${task.countable ? 'checked' : ''} data-task-field="countable" data-task-id="${escapeHtml(task.id)}" />
                             <span>件数</span>
@@ -1376,6 +1406,16 @@ function handleFocusIn(event) {
 }
 
 function handleKeyDown(event) {
+  if (isAppUndoShortcut(event)) {
+    if (undoStack.length === 0) return;
+    event.preventDefault();
+    const previousState = undoStack[undoStack.length - 1];
+    undoStack = undoStack.slice(0, -1);
+    focusedCell = null;
+    commit(previousState, { history: false });
+    return;
+  }
+
   if (event.key !== 'Backspace' || !focusedCell) return;
   if (event.target.closest?.('input, textarea, select')) return;
   if (focusedCell.collectionName !== 'dayPlans') return;
@@ -1544,7 +1584,8 @@ function handleSubmit(event) {
       name,
       projectId,
       nature: String(formData.get('nature') ?? 'core'),
-      countable: formData.get('countable') === 'on'
+      countable: formData.get('countable') === 'on',
+      shortcutVisibility: String(formData.get('shortcutVisibility') ?? 'both')
     });
     selectedTaskId = nextState.tasks[nextState.tasks.length - 1].id;
     commit(nextState);

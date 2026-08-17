@@ -59,6 +59,30 @@ test('addTask creates an active task under a selected project', () => {
   );
 });
 
+test('addTask stores shortcut visibility for selected users', () => {
+  const state = createAppState('2026-08-03');
+  const next = addTask(state, {
+    projectId: 'routine-admin',
+    name: 'Tanoue only task',
+    nature: 'admin',
+    countable: false,
+    shortcutVisibility: 'tanoue'
+  });
+
+  assert.equal(next.tasks.at(-1).shortcutVisibility, 'tanoue');
+});
+
+test('normalizeState defaults older tasks to both shortcut pages', () => {
+  const state = createAppState('2026-08-03');
+  const legacy = {
+    ...state,
+    tasks: state.tasks.map(({ shortcutVisibility, ...task }) => task)
+  };
+  const normalized = normalizeState(legacy);
+
+  assert.ok(normalized.tasks.every((task) => task.shortcutVisibility === 'both'));
+});
+
 test('updateTask edits task metadata without changing unrelated tasks', () => {
   const state = createAppState('2026-08-03');
   const target = state.tasks.find((task) => task.name === 'テレアポ');

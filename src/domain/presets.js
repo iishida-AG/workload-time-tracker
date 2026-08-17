@@ -34,7 +34,8 @@ export const DEFAULT_TASKS = taskGroups.flatMap(([projectId, nature, countable, 
     countable,
     status: 'active',
     order: groupIndex * 100 + taskIndex + 1,
-    description: ''
+    description: '',
+    shortcutVisibility: 'both'
   }))
 );
 

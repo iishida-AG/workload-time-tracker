@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import { createDashboardViewModel } from '../src/ui/view-model.js';
-import { buildUserUrl, countGoalTone, getCopyTextKey, getUserIdFromUrl, nextSelectedTaskId } from '../src/main.js';
+import {
+  buildUserUrl,
+  countGoalTone,
+  getCopyTextKey,
+  getUserIdFromUrl,
+  isAppUndoShortcut,
+  nextSelectedTaskId
+} from '../src/main.js';
 
 const jp = {
   planned: '\u4e88\u5b9a',
@@ -90,6 +97,20 @@ test('createDashboardViewModel excludes tasks from hidden projects from active s
   assert.equal(view.countableTasks.length, 0);
 });
 
+test('createDashboardViewModel filters shortcut tasks by user visibility', () => {
+  const state = {
+    ...baseState(),
+    tasks: [
+      { id: 'both', projectId: 'p1', name: 'Both', nature: 'core', countable: false, status: 'active', order: 1, shortcutVisibility: 'both' },
+      { id: 'ishida-only', projectId: 'p1', name: 'Ishida', nature: 'core', countable: false, status: 'active', order: 2, shortcutVisibility: 'ishida' },
+      { id: 'tanoue-only', projectId: 'p1', name: 'Tanoue', nature: 'core', countable: false, status: 'active', order: 3, shortcutVisibility: 'tanoue' }
+    ]
+  };
+
+  assert.deepEqual(createDashboardViewModel(state, '2026-08-05', 'ishida').activeTasks.map((task) => task.id), ['both', 'ishida-only']);
+  assert.deepEqual(createDashboardViewModel(state, '2026-08-05', 'tanoue').activeTasks.map((task) => task.id), ['both', 'tanoue-only']);
+});
+
 test('user URLs select Ishida or Tanoue and ignore invalid values', () => {
   assert.equal(getUserIdFromUrl('https://example.github.io/workload/?user=tanoue'), 'tanoue');
   assert.equal(getUserIdFromUrl('https://example.github.io/workload/?user=ishida'), 'ishida');
@@ -114,4 +135,10 @@ test('getCopyTextKey creates stable keys for one-touch daily text copy buttons',
 test('nextSelectedTaskId clears the selection when the selected shortcut is pressed again', () => {
   assert.equal(nextSelectedTaskId('proposal', 'proposal'), '');
   assert.equal(nextSelectedTaskId('', 'proposal'), 'proposal');
+});
+
+test('isAppUndoShortcut handles Ctrl+Z outside text inputs only', () => {
+  assert.equal(isAppUndoShortcut({ key: 'z', ctrlKey: true, metaKey: false, shiftKey: false, target: { closest: () => null } }), true);
+  assert.equal(isAppUndoShortcut({ key: 'Z', ctrlKey: true, metaKey: false, shiftKey: false, target: { closest: () => ({}) } }), false);
+  assert.equal(isAppUndoShortcut({ key: 'z', ctrlKey: true, metaKey: false, shiftKey: true, target: { closest: () => null } }), false);
 });
