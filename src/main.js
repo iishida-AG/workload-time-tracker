@@ -519,7 +519,7 @@ function renderStartMinuteOptions(selectedMinute) {
   return [0, 15, 30, 45]
     .map(
       (minute) =>
-        `<option value="${minute}" ${minute === selectedMinute ? 'selected' : ''}>${String(minute).padStart(2, '0')}</option>`
+        `<option value="${minute}" ${minute === selectedMinute ? 'selected' : ''}>${String(minute).padStart(2, '0')}分</option>`
     )
     .join('');
 }
@@ -716,7 +716,6 @@ function renderTimelineItemRows(entry, hour, collectionName) {
             <div class="actual-item-row" data-drop-target="timeline-item">
               <span class="actual-item-task">${escapeHtml(task?.name ?? '\u672a\u8a2d\u5b9a')}</span>
               <label class="actual-start-wrap">
-                <span>:</span>
                 <select class="actual-start-input" data-field="timeline-item-start-minute" data-collection="${collectionName}" data-hour="${hour}" data-item-index="${index}" aria-label="\u958b\u59cb\u5206">
                   ${renderStartMinuteOptions(selectedMinute)}
                 </select>

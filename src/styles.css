@@ -598,21 +598,20 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: minmax(88px, 1fr) 44px minmax(150px, 1.7fr) 28px;
+  grid-template-columns: minmax(90px, 1fr) 58px minmax(150px, 1.8fr) 28px;
   gap: 4px;
   align-items: center;
   min-width: 0;
 }
 
 .plan-entry .actual-item-row {
-  grid-template-columns: minmax(88px, 1fr) 44px minmax(150px, 1.7fr) 28px;
+  grid-template-columns: minmax(90px, 1fr) 58px minmax(150px, 1.8fr) 28px;
 }
 
 .actual-start-wrap {
   display: inline-flex;
   align-items: center;
-  justify-content: end;
-  gap: 1px;
+  justify-content: center;
   min-width: 0;
   color: #667085;
   font-size: 12px;
@@ -620,9 +619,9 @@ main {
 }
 
 .actual-start-input {
-  width: 36px;
+  width: 58px;
   min-height: 28px;
-  padding: 0 2px;
+  padding: 0 4px;
   border: 1px solid #d7deea;
   border-radius: 6px;
   background: #fff;
