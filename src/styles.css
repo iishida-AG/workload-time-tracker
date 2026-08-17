@@ -598,14 +598,14 @@ main {
 
 .actual-item-row {
   display: grid;
-  grid-template-columns: minmax(84px, 1fr) 44px 48px 16px minmax(110px, 1.3fr) 28px;
+  grid-template-columns: minmax(88px, 1fr) 44px minmax(150px, 1.7fr) 28px;
   gap: 4px;
   align-items: center;
   min-width: 0;
 }
 
 .plan-entry .actual-item-row {
-  grid-template-columns: minmax(84px, 1fr) 44px 48px 16px minmax(110px, 1.3fr) 28px;
+  grid-template-columns: minmax(88px, 1fr) 44px minmax(150px, 1.7fr) 28px;
 }
 
 .actual-start-wrap {
@@ -703,7 +703,11 @@ main {
   border-radius: 6px;
 }
 
-.actual-minute-label,
+.actual-minutes-input,
+.actual-minute-label {
+  display: none;
+}
+
 .actual-item-empty {
   color: #667085;
   font-size: 12px;
