@@ -1725,8 +1725,15 @@ main {
 }
 
 @media (max-width: 760px) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+
   .app-shell {
     padding: 12px;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 
   .app-header,
@@ -1761,12 +1768,6 @@ main {
   }
 
   .kpi-strip,
-  .timeline-grid,
-  .timeline-entry,
-  .plan-entry,
-  .actual-entry,
-  .plan-inline-select,
-  .actual-item-row,
   .plan-prompt,
   .plan-prompt-controls,
   .shortcut-task-line,
@@ -1779,6 +1780,134 @@ main {
   .review-form,
   .ratio-card {
     grid-template-columns: 1fr;
+  }
+
+  .timeline-panel,
+  .timeline-column,
+  .timeline-entry,
+  .actual-item-list,
+  .actual-item-row {
+    min-width: 0;
+  }
+
+  .timeline-panel {
+    overflow-x: hidden;
+  }
+
+  .timeline-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .timeline-column {
+    gap: 10px;
+  }
+
+  .timeline-title {
+    position: static;
+  }
+
+  .timeline-entry,
+  .actual-entry {
+    width: 100%;
+  }
+
+  .plan-entry {
+    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-areas:
+      "done cell"
+      ". items";
+    align-items: start;
+    padding: 8px;
+    border: 1px solid #e6edf6;
+    border-radius: 8px;
+    background: #fbfdff;
+  }
+
+  .plan-entry .planned-done-button {
+    grid-area: done;
+  }
+
+  .plan-entry .timeline-cell {
+    grid-area: cell;
+  }
+
+  .plan-entry .actual-item-list {
+    grid-area: items;
+  }
+
+  .actual-entry {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid #e6edf6;
+    border-radius: 8px;
+    background: #fbfdff;
+  }
+
+  .timeline-cell,
+  .plan-inline-select,
+  .actual-entry .timeline-cell {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 34px;
+  }
+
+  .timeline-hour,
+  .plan-inline-time {
+    font-size: 14px;
+  }
+
+  .actual-item-row,
+  .plan-entry .actual-item-row {
+    grid-template-columns: minmax(0, 1fr) 76px 32px;
+    grid-template-areas:
+      "task start remove"
+      "note note note";
+    gap: 6px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .actual-item-task {
+    grid-area: task;
+  }
+
+  .actual-start-wrap {
+    grid-area: start;
+    justify-content: stretch;
+  }
+
+  .actual-start-input {
+    width: 100%;
+  }
+
+  .actual-note-input {
+    grid-area: note;
+    min-height: 34px;
+    padding: 0 10px;
+  }
+
+  .actual-item-row .mini-icon-button {
+    grid-area: remove;
+    justify-self: end;
+  }
+
+  .shortcut-panel {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .shortcut-grid,
+  .shortcut-group-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shortcut-task-line {
+    gap: 6px;
+  }
+
+  .shortcut-minute-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .project-goal-card-header {
