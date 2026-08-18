@@ -6,6 +6,8 @@ import {
   getCopyTextKey,
   getUserIdFromUrl,
   isAppUndoShortcut,
+  mobileFocusedHourLabel,
+  nextMobileFocusedCell,
   nextSelectedTaskId,
   reviewTargetWeekStart,
   selectedTaskAfterTimelineUse
@@ -152,4 +154,21 @@ test('isAppUndoShortcut handles Ctrl+Z outside text inputs only', () => {
   assert.equal(isAppUndoShortcut({ key: 'z', ctrlKey: true, metaKey: false, shiftKey: false, target: { closest: () => null } }), true);
   assert.equal(isAppUndoShortcut({ key: 'Z', ctrlKey: true, metaKey: false, shiftKey: false, target: { closest: () => ({}) } }), false);
   assert.equal(isAppUndoShortcut({ key: 'z', ctrlKey: true, metaKey: false, shiftKey: true, target: { closest: () => null } }), false);
+});
+
+test('nextMobileFocusedCell moves within the visible timeline range', () => {
+  const current = { collectionName: 'dayPlans', userId: 'ishida', date: '2026-08-05', hour: 10 };
+  assert.deepEqual(nextMobileFocusedCell(current, 1, 'ishida', '2026-08-05', 10, 13), {
+    collectionName: 'dayPlans',
+    userId: 'ishida',
+    date: '2026-08-05',
+    hour: 11
+  });
+  assert.equal(nextMobileFocusedCell(current, -1, 'ishida', '2026-08-05', 10, 13).hour, 10);
+  assert.equal(nextMobileFocusedCell(null, 1, 'ishida', '2026-08-05', 10, 13).hour, 10);
+});
+
+test('mobileFocusedHourLabel describes the selected schedule cell', () => {
+  assert.equal(mobileFocusedHourLabel({ collectionName: 'dayActuals', hour: 11 }), '実績 11:00-');
+  assert.equal(mobileFocusedHourLabel(null), '時間未選択');
 });

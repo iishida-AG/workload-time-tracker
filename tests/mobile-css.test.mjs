@@ -20,4 +20,7 @@ test('mobile CSS stacks timeline columns and actual item controls without horizo
   assert.match(mobileSection, /\.actual-item-row\s*{[^}]*grid-template-areas:\s*"task start remove"[^}]*"note note note"/s);
   assert.match(mobileSection, /\.actual-note-input\s*{[^}]*grid-area:\s*note;/s);
   assert.match(mobileSection, /\.timeline-panel\s*{[^}]*overflow-x:\s*hidden;/s);
+  assert.match(mobileSection, /\.mobile-timeline-controls\s*{[^}]*display:\s*grid;/s);
+  assert.match(mobileSection, /\.shortcut-panel\s*{[^}]*position:\s*fixed;[^}]*bottom:\s*10px;/s);
+  assert.match(mobileSection, /\.app-shell\s*{[^}]*padding-bottom:\s*310px;/s);
 });

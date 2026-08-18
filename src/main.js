@@ -121,6 +121,34 @@ export function selectedTaskAfterTimelineUse() {
   return '';
 }
 
+export function nextMobileFocusedCell(currentCell, direction, userId, date, startHour, endHour) {
+  const hours = getTimelineHours(startHour, endHour);
+  const fallbackHour = hours[0] ?? startHour ?? 9;
+  if (!currentCell || currentCell.userId !== userId || currentCell.date !== date || !hours.includes(currentCell.hour)) {
+    return {
+      collectionName: currentCell?.collectionName === 'dayActuals' ? 'dayActuals' : 'dayPlans',
+      userId,
+      date,
+      hour: fallbackHour
+    };
+  }
+  const currentHour = currentCell.hour;
+  const currentIndex = Math.max(0, hours.indexOf(currentHour));
+  const nextIndex = Math.min(hours.length - 1, Math.max(0, currentIndex + direction));
+  return {
+    collectionName: currentCell?.collectionName === 'dayActuals' ? 'dayActuals' : 'dayPlans',
+    userId,
+    date,
+    hour: hours[nextIndex] ?? fallbackHour
+  };
+}
+
+export function mobileFocusedHourLabel(cell) {
+  if (!cell) return '時間未選択';
+  const label = cell.collectionName === 'dayActuals' ? '実績' : '予定';
+  return `${label} ${String(cell.hour).padStart(2, '0')}:00-`;
+}
+
 export function reviewTargetWeekStart(dateKey) {
   return addDays(getWeekStart(dateKey), -7);
 }
@@ -774,12 +802,30 @@ function renderTimelineBoard(view) {
           <button class="primary-button" data-action="copy-plan">${icon('copy')}<span>予定を実績へコピー</span></button>
         </div>
       </div>
+      ${renderMobileTimelineControls(view)}
       <div class="timeline-grid">
         ${renderTimelineColumn('予定', 'dayPlans', view)}
         ${renderTimelineColumn('実績', 'dayActuals', view)}
       </div>
       ${renderCopyTextBlocks(view)}
     </section>
+  `;
+}
+
+function renderMobileTimelineControls(view) {
+  const displayCell =
+    focusedCell?.userId === view.userId && focusedCell?.date === currentDate
+      ? focusedCell
+      : null;
+  return `
+    <div class="mobile-timeline-controls" aria-label="スマホ用時間移動">
+      <button class="ghost-button" data-action="mobile-focus-hour" data-direction="-1">${icon('arrowUp')}<span>前へ</span></button>
+      <div class="mobile-focus-status">
+        <span>選択中</span>
+        <strong>${escapeHtml(mobileFocusedHourLabel(displayCell))}</strong>
+      </div>
+      <button class="ghost-button" data-action="mobile-focus-hour" data-direction="1"><span>次へ</span>${icon('arrowDown')}</button>
+    </div>
   `;
 }
 
@@ -1937,6 +1983,18 @@ function handleClick(event) {
   if (action === 'copy-plan-hour') {
     focusedCell = { collectionName: 'dayActuals', userId: activeUserId, date: currentDate, hour: Number(button.dataset.hour) };
     commit(copyPlanHourToActual(state, activeUserId, currentDate, Number(button.dataset.hour)));
+  }
+  if (action === 'mobile-focus-hour') {
+    const view = createDashboardViewModel(state, currentDate, activeUserId);
+    focusedCell = nextMobileFocusedCell(
+      focusedCell,
+      Number(button.dataset.direction),
+      activeUserId,
+      currentDate,
+      view.timelineSetting.startHour,
+      view.timelineSetting.endHour
+    );
+    render();
   }
   if (action === 'add-actual-minutes') {
     const view = createDashboardViewModel(state, currentDate, activeUserId);
