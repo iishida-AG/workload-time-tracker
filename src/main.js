@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-loginfix-v2';
+import { createAuthController } from './state/auth.js?v=20260821-authstate-v3';
 import {
   addProject,
   addTask,

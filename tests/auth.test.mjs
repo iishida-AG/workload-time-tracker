@@ -48,3 +48,24 @@ await test('firebase auth login returns an error instead of staying loading when
   assert.equal(result.user, null);
   assert.equal(result.error, 'ログインに失敗しました。通信状況を確認して再読み込みしてください');
 });
+
+await test('firebase auth subscribe returns to signed-out if initial auth state never arrives', async () => {
+  const controller = createAuthController({
+    firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
+    authStateTimeoutMs: 5,
+    authApiFactory: async () => ({
+      instance: {},
+      auth: {
+        onAuthStateChanged: () => () => {}
+      }
+    })
+  });
+  const states = [];
+  const unsubscribe = await controller.subscribe((state) => states.push(state));
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  unsubscribe();
+
+  assert.equal(states[0].status, 'loading');
+  assert.equal(states[1].status, 'signed-out');
+  assert.equal(states[1].error, '');
+});

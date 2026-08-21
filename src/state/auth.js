@@ -41,6 +41,7 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
   let authPromise;
   const authApiFactory = options.authApiFactory;
   const authLoadTimeoutMs = options.authLoadTimeoutMs ?? 8000;
+  const authStateTimeoutMs = options.authStateTimeoutMs ?? 3500;
   const loginTimeoutMs = options.loginTimeoutMs ?? 10000;
 
   async function getAuthApi() {
@@ -79,11 +80,30 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
         throw error;
       }
       const { auth, instance } = authApi;
-      return auth.onAuthStateChanged(
+      let receivedInitialState = false;
+      let unsubscribeAuthState = () => {};
+      const fallbackTimer = setTimeout(() => {
+        if (receivedInitialState) return;
+        receivedInitialState = true;
+        callback({ status: 'signed-out', user: null, error: '' });
+      }, authStateTimeoutMs);
+      unsubscribeAuthState = auth.onAuthStateChanged(
         instance,
-        (user) => callback({ status: user ? 'signed-in' : 'signed-out', user, error: '' }),
-        () => callback({ status: 'signed-out', user: null, error: '\u8a8d\u8a3c\u72b6\u614b\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f' })
+        (user) => {
+          receivedInitialState = true;
+          clearTimeout(fallbackTimer);
+          callback({ status: user ? 'signed-in' : 'signed-out', user, error: '' });
+        },
+        () => {
+          receivedInitialState = true;
+          clearTimeout(fallbackTimer);
+          callback({ status: 'signed-out', user: null, error: '\u8a8d\u8a3c\u72b6\u614b\u3092\u78ba\u8a8d\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f' });
+        }
       );
+      return () => {
+        clearTimeout(fallbackTimer);
+        unsubscribeAuthState();
+      };
     },
     async login(email, password) {
       try {
@@ -106,8 +126,8 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
   };
 }
 
-export function createAuthController({ firebaseConfig, authApiFactory, authLoadTimeoutMs, loginTimeoutMs }) {
+export function createAuthController({ firebaseConfig, authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs }) {
   return authIsRequired(firebaseConfig)
-    ? createFirebaseAuthController(firebaseConfig, { authApiFactory, authLoadTimeoutMs, loginTimeoutMs })
+    ? createFirebaseAuthController(firebaseConfig, { authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs })
     : createLocalAuthController();
 }
