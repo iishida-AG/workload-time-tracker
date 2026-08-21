@@ -26,21 +26,48 @@ export function createLocalStateAdapter(storage = globalThis.localStorage, today
   };
 }
 
-export function createFirestoreStateAdapter(firebaseConfig, today) {
+export function createFirestoreStateAdapter(
+  firebaseConfig,
+  today,
+  deps = { getFirebaseApp, importFirebaseFirestoreModule }
+) {
   return {
     mode: 'firestore',
     async subscribe(callback) {
-      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), importFirebaseFirestoreModule()]);
+      const [app, firestore] = await Promise.all([
+        deps.getFirebaseApp(firebaseConfig),
+        deps.importFirebaseFirestoreModule()
+      ]);
       const db = firestore.getFirestore(app);
       const ref = firestore.doc(db, 'workloadApps', 'default');
-      return firestore.onSnapshot(ref, async (snapshot) => {
-        if (!snapshot.exists()) {
-          const initial = createAppState(today);
-          await firestore.setDoc(ref, initial);
-          callback(initial);
-          return;
-        }
-        callback(normalizeState(snapshot.data()));
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        let unsubscribe = () => {};
+        const rejectSubscription = (error) => {
+          if (!settled) {
+            settled = true;
+            reject(error);
+            return;
+          }
+          console.error('Firestore subscription failed', error);
+        };
+        unsubscribe = firestore.onSnapshot(ref, async (snapshot) => {
+          try {
+            if (!snapshot.exists()) {
+              const initial = createAppState(today);
+              await firestore.setDoc(ref, initial);
+              callback(initial);
+            } else {
+              callback(normalizeState(snapshot.data()));
+            }
+            if (!settled) {
+              settled = true;
+              resolve(unsubscribe);
+            }
+          } catch (error) {
+            rejectSubscription(error);
+          }
+        }, rejectSubscription);
       });
     },
     async save(nextState) {
