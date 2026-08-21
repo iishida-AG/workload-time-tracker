@@ -9,7 +9,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "test": "node tests/run-all.mjs",
     "lint": "node scripts/check-syntax.mjs",
-    "firebase:deploy": "firebase deploy --only hosting"
+    "firebase:deploy": "firebase deploy --only hosting",
+    "firebase:rules:deploy": "firebase deploy --only firestore:rules --project ishida-ai-tool-dev --config firebase.rules.deploy.json"
   },
   "dependencies": {
     "date-fns": "^4.1.0",
