@@ -12,6 +12,7 @@ import {
   nextMobileFocusedCell,
   nextSelectedTaskId,
   reviewTargetWeekStart,
+  renderSharedStateError,
   selectedTaskAfterTimelineUse,
   logoutIsRequested
 } from '../src/main.js';
@@ -139,6 +140,12 @@ test('firebase auth storage matcher only targets auth cache keys', () => {
   assert.equal(firebaseAuthStorageKeyMatches('firebase:authUser:demo:[DEFAULT]'), true);
   assert.equal(firebaseAuthStorageKeyMatches('firestore_mutations_cache'), false);
   assert.equal(firebaseAuthStorageKeyMatches('workload-time-tracker:v2'), false);
+});
+
+test('shared state error shows the signed-in email and a re-login action', () => {
+  const html = renderSharedStateError('ag.rtagami@gmail.com');
+  assert.match(html, /ag\.rtagami@gmail\.com/);
+  assert.match(html, /data-action="force-logout"/);
 });
 
 test('countGoalTone marks achieved counts blue and missed counts red', () => {

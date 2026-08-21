@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-logout-v6';
+import { createAuthController } from './state/auth.js?v=20260821-auth-retry-v7';
 import {
   addProject,
   addTask,
@@ -240,6 +240,25 @@ function renderAuthGate() {
   `;
 }
 
+export function renderSharedStateError(email = '') {
+  const emailLine = email ? `<p class="auth-note">現在のログイン: <strong>${escapeHtml(email)}</strong></p>` : '';
+  return `
+    <div class="app-shell">
+      <section class="panel shared-error-panel">
+        <div class="panel-heading">
+          <div>
+            <span class="section-kicker">共有データ</span>
+            <h2>共有データを読み込めませんでした</h2>
+          </div>
+        </div>
+        <p>Firebaseのログイン権限、またはFirestoreルールでこのメールアドレスが許可されていない可能性があります。</p>
+        ${emailLine}
+        <button class="primary-button" data-action="force-logout" type="button">${icon('log-out')}<span>ログアウトして入り直す</span></button>
+      </section>
+    </div>
+  `;
+}
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => {
     const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -405,7 +424,7 @@ function subscribeSharedState() {
       })
       .catch((error) => {
         console.error('Failed to subscribe to state', error);
-        root.innerHTML = '<div class="app-shell"><section class="panel">共有データを読み込めませんでした。Firebaseのログイン権限とFirestoreルールを確認してください。</section></div>';
+        root.innerHTML = renderSharedStateError(authState.user?.email ?? '');
       });
   } else {
     unsubscribeState = subscription;
@@ -1965,6 +1984,17 @@ function applyMonthlyProgress() {
   });
 }
 
+function logoutAndReload() {
+  root.innerHTML = '<div class="app-shell"><section class="panel">ログアウト中...</section></div>';
+  authController
+    .logout()
+    .catch((error) => console.error('Failed to logout', error))
+    .finally(() => clearFirebaseAuthPersistence(window))
+    .finally(() => {
+      window.location.replace(buildUrlWithoutLogout(window.location.href));
+    });
+}
+
 function handleClick(event) {
   const button = event.target.closest('[data-action]');
   if (!button) return;
@@ -1997,8 +2027,8 @@ function handleClick(event) {
     copyFormat = button.dataset.format === 'category' ? 'category' : 'timeline';
     render();
   }
-  if (action === 'logout') {
-    authController.logout().catch((error) => console.error('Failed to logout', error));
+  if (action === 'logout' || action === 'force-logout') {
+    logoutAndReload();
   }
   if (action === 'select-task') {
     selectedTaskId = nextSelectedTaskId(selectedTaskId, button.dataset.taskId);
@@ -2495,14 +2525,7 @@ function boot() {
   root.addEventListener('submit', handleSubmit);
   root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
   if (logoutIsRequested(window.location.href)) {
-    root.innerHTML = '<div class="app-shell"><section class="panel">ログアウト中...</section></div>';
-    authController
-      .logout()
-      .catch((error) => console.error('Failed to logout from URL', error))
-      .finally(() => clearFirebaseAuthPersistence(window))
-      .finally(() => {
-        window.location.replace(buildUrlWithoutLogout(window.location.href));
-      });
+    logoutAndReload();
     return;
   }
   if (!planPromptTimer) {
