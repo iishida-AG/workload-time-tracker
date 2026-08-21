@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-logout-v5';
+import { createAuthController } from './state/auth.js?v=20260821-logout-v6';
 import {
   addProject,
   addTask,
@@ -116,6 +116,38 @@ export function buildUrlWithoutLogout(url) {
   const parsed = new URL(url);
   parsed.searchParams.delete('logout');
   return parsed.toString();
+}
+
+export function firebaseAuthStorageKeyMatches(key) {
+  const normalized = String(key || '').toLowerCase();
+  return normalized.startsWith('firebase:authuser:') || normalized.includes('firebaseauth');
+}
+
+export function clearFirebaseAuthPersistence(globalObject = globalThis) {
+  const clearStorage = (storage) => {
+    if (!storage) return;
+    const keys = [];
+    for (let index = 0; index < storage.length; index += 1) {
+      const key = storage.key(index);
+      if (firebaseAuthStorageKeyMatches(key)) keys.push(key);
+    }
+    keys.forEach((key) => storage.removeItem(key));
+  };
+
+  try {
+    clearStorage(globalObject.localStorage);
+    clearStorage(globalObject.sessionStorage);
+  } catch (error) {
+    console.error('Failed to clear Firebase auth storage', error);
+  }
+
+  if (!globalObject.indexedDB?.deleteDatabase) return Promise.resolve();
+  return new Promise((resolve) => {
+    const request = globalObject.indexedDB.deleteDatabase('firebaseLocalStorageDb');
+    request.onsuccess = resolve;
+    request.onerror = resolve;
+    request.onblocked = resolve;
+  });
 }
 
 export function countGoalTone(targetCount, actualCount) {
@@ -2467,9 +2499,9 @@ function boot() {
     authController
       .logout()
       .catch((error) => console.error('Failed to logout from URL', error))
+      .finally(() => clearFirebaseAuthPersistence(window))
       .finally(() => {
-        window.history.replaceState({}, '', buildUrlWithoutLogout(window.location.href));
-        startAuthFlow();
+        window.location.replace(buildUrlWithoutLogout(window.location.href));
       });
     return;
   }

@@ -4,6 +4,7 @@ import {
   buildUserUrl,
   buildUrlWithoutLogout,
   countGoalTone,
+  firebaseAuthStorageKeyMatches,
   getCopyTextKey,
   getUserIdFromUrl,
   isAppUndoShortcut,
@@ -132,6 +133,12 @@ test('logout URL helpers detect and remove the logout request', () => {
   assert.equal(logoutIsRequested('https://example.github.io/workload/?user=ishida&logout=1'), true);
   assert.equal(logoutIsRequested('https://example.github.io/workload/?user=ishida'), false);
   assert.equal(buildUrlWithoutLogout('https://example.github.io/workload/?user=ishida&logout=1'), 'https://example.github.io/workload/?user=ishida');
+});
+
+test('firebase auth storage matcher only targets auth cache keys', () => {
+  assert.equal(firebaseAuthStorageKeyMatches('firebase:authUser:demo:[DEFAULT]'), true);
+  assert.equal(firebaseAuthStorageKeyMatches('firestore_mutations_cache'), false);
+  assert.equal(firebaseAuthStorageKeyMatches('workload-time-tracker:v2'), false);
 });
 
 test('countGoalTone marks achieved counts blue and missed counts red', () => {
