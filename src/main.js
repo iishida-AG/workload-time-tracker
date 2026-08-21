@@ -2364,8 +2364,14 @@ function handleSubmit(event) {
     authController
       .login(email, password)
       .then((nextAuthState) => {
+        authState = nextAuthState;
+        if (nextAuthState.status === 'signed-in') {
+          if (!unsubscribeState) {
+            subscribeSharedState();
+          }
+          return;
+        }
         if (nextAuthState.error) {
-          authState = nextAuthState;
           root.innerHTML = renderAuthGate();
         }
       })

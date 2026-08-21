@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { authIsRequired, createAuthController } from '../src/state/auth.js';
 
-function test(name, fn) {
+async function test(name, fn) {
   try {
-    fn();
+    await fn();
     console.log(`ok - ${name}`);
   } catch (error) {
     console.error(`not ok - ${name}`);
@@ -11,12 +11,12 @@ function test(name, fn) {
   }
 }
 
-test('authIsRequired follows complete Firebase config', () => {
+await test('authIsRequired follows complete Firebase config', () => {
   assert.equal(authIsRequired({ apiKey: '', projectId: '', appId: '' }), false);
   assert.equal(authIsRequired({ apiKey: 'api', projectId: 'project', appId: 'app' }), true);
 });
 
-test('local auth controller immediately emits a local signed-in state', () => {
+await test('local auth controller immediately emits a local signed-in state', () => {
   const controller = createAuthController({
     firebaseConfig: { apiKey: '', projectId: '', appId: '' }
   });
@@ -28,4 +28,23 @@ test('local auth controller immediately emits a local signed-in state', () => {
   assert.equal(states.length, 1);
   assert.equal(states[0].status, 'signed-in');
   assert.equal(states[0].user.email, 'local');
+});
+
+await test('firebase auth login returns an error instead of staying loading when sign-in hangs', async () => {
+  const controller = createAuthController({
+    firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
+    loginTimeoutMs: 5,
+    authApiFactory: async () => ({
+      instance: {},
+      auth: {
+        signInWithEmailAndPassword: () => new Promise(() => {})
+      }
+    })
+  });
+
+  const result = await controller.login('iishida@agentgate.jp', 'password');
+
+  assert.equal(result.status, 'signed-out');
+  assert.equal(result.user, null);
+  assert.equal(result.error, 'ログインに失敗しました。通信状況を確認して再読み込みしてください');
 });

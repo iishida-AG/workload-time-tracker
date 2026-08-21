@@ -24,6 +24,10 @@ function createLocalAuthController() {
 
 function mapAuthError(error) {
   const code = String(error?.code ?? '');
+  const message = String(error?.message ?? '');
+  if (message.includes('timed out')) {
+    return 'ログインに失敗しました。通信状況を確認して再読み込みしてください';
+  }
   if (code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')) {
     return '\u30e1\u30fc\u30eb\u30a2\u30c9\u30ec\u30b9\u307e\u305f\u306f\u30d1\u30b9\u30ef\u30fc\u30c9\u304c\u9055\u3044\u307e\u3059';
   }
@@ -33,14 +37,19 @@ function mapAuthError(error) {
   return '\u30ed\u30b0\u30a4\u30f3\u306b\u5931\u6557\u3057\u307e\u3057\u305f';
 }
 
-function createFirebaseAuthController(firebaseConfig) {
+function createFirebaseAuthController(firebaseConfig, options = {}) {
   let authPromise;
+  const authApiFactory = options.authApiFactory;
+  const authLoadTimeoutMs = options.authLoadTimeoutMs ?? 8000;
+  const loginTimeoutMs = options.loginTimeoutMs ?? 10000;
 
   async function getAuthApi() {
     if (!authPromise) {
-      authPromise = Promise.all([getFirebaseApp(firebaseConfig), importFirebaseAuthModule()]).then(
-        ([app, auth]) => ({ auth, instance: auth.getAuth(app) })
-      );
+      authPromise = authApiFactory
+        ? authApiFactory()
+        : Promise.all([getFirebaseApp(firebaseConfig), importFirebaseAuthModule()]).then(
+            ([app, auth]) => ({ auth, instance: auth.getAuth(app) })
+          );
     }
     return authPromise;
   }
@@ -60,7 +69,7 @@ function createFirebaseAuthController(firebaseConfig) {
       callback({ status: 'loading', user: null, error: '' });
       let authApi;
       try {
-        authApi = await withTimeout(getAuthApi(), 8000, 'Firebase Auth loading timed out');
+        authApi = await withTimeout(getAuthApi(), authLoadTimeoutMs, 'Firebase Auth loading timed out');
       } catch (error) {
         callback({
           status: 'signed-out',
@@ -77,9 +86,13 @@ function createFirebaseAuthController(firebaseConfig) {
       );
     },
     async login(email, password) {
-      const { auth, instance } = await getAuthApi();
       try {
-        const credential = await auth.signInWithEmailAndPassword(instance, email, password);
+        const { auth, instance } = await withTimeout(getAuthApi(), authLoadTimeoutMs, 'Firebase Auth loading timed out');
+        const credential = await withTimeout(
+          auth.signInWithEmailAndPassword(instance, email, password),
+          loginTimeoutMs,
+          'Firebase Auth login timed out'
+        );
         return { status: 'signed-in', user: credential.user, error: '' };
       } catch (error) {
         return { status: 'signed-out', user: null, error: mapAuthError(error) };
@@ -93,6 +106,8 @@ function createFirebaseAuthController(firebaseConfig) {
   };
 }
 
-export function createAuthController({ firebaseConfig }) {
-  return authIsRequired(firebaseConfig) ? createFirebaseAuthController(firebaseConfig) : createLocalAuthController();
+export function createAuthController({ firebaseConfig, authApiFactory, authLoadTimeoutMs, loginTimeoutMs }) {
+  return authIsRequired(firebaseConfig)
+    ? createFirebaseAuthController(firebaseConfig, { authApiFactory, authLoadTimeoutMs, loginTimeoutMs })
+    : createLocalAuthController();
 }
