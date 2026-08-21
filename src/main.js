@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-auth-retry-v7';
+import { createAuthController } from './state/auth.js?v=20260821-auth-retry-v8';
 import {
   addProject,
   addTask,
@@ -240,8 +240,12 @@ function renderAuthGate() {
   `;
 }
 
-export function renderSharedStateError(email = '') {
+export function renderSharedStateError(email = '', error = null) {
   const emailLine = email ? `<p class="auth-note">現在のログイン: <strong>${escapeHtml(email)}</strong></p>` : '';
+  const errorCode = String(error?.code ?? '').trim();
+  const errorMessage = String(error?.message ?? '').trim();
+  const details = [errorCode, errorMessage].filter(Boolean).join(' / ');
+  const detailsLine = details ? `<p class="auth-note">エラー詳細: <strong>${escapeHtml(details)}</strong></p>` : '';
   return `
     <div class="app-shell">
       <section class="panel shared-error-panel">
@@ -253,6 +257,7 @@ export function renderSharedStateError(email = '') {
         </div>
         <p>Firebaseのログイン権限、またはFirestoreルールでこのメールアドレスが許可されていない可能性があります。</p>
         ${emailLine}
+        ${detailsLine}
         <button class="primary-button" data-action="force-logout" type="button">${icon('log-out')}<span>ログアウトして入り直す</span></button>
       </section>
     </div>
@@ -424,7 +429,7 @@ function subscribeSharedState() {
       })
       .catch((error) => {
         console.error('Failed to subscribe to state', error);
-        root.innerHTML = renderSharedStateError(authState.user?.email ?? '');
+        root.innerHTML = renderSharedStateError(authState.user?.email ?? '', error);
       });
   } else {
     unsubscribeState = subscription;
@@ -2552,7 +2557,7 @@ function boot() {
       })
       .catch((error) => {
         console.error('Failed to subscribe to state', error);
-        root.innerHTML = '<div class="app-shell"><section class="panel">状態の読み込みに失敗しました</section></div>';
+        root.innerHTML = renderSharedStateError(authState.user?.email ?? '', error);
       });
   } else {
     unsubscribeState = subscription;

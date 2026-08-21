@@ -43,6 +43,7 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
   const authLoadTimeoutMs = options.authLoadTimeoutMs ?? 8000;
   const authStateTimeoutMs = options.authStateTimeoutMs ?? 3500;
   const loginTimeoutMs = options.loginTimeoutMs ?? 10000;
+  const tokenRefreshTimeoutMs = options.tokenRefreshTimeoutMs ?? 8000;
 
   async function getAuthApi() {
     if (!authPromise) {
@@ -62,6 +63,12 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
         setTimeout(() => reject(new Error(message)), milliseconds);
       })
     ]);
+  }
+
+  async function refreshUserToken(user) {
+    if (typeof user?.getIdToken !== 'function') return user;
+    await withTimeout(user.getIdToken(true), tokenRefreshTimeoutMs, 'Firebase Auth token refresh timed out');
+    return user;
   }
 
   return {
@@ -89,10 +96,19 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
       }, authStateTimeoutMs);
       unsubscribeAuthState = auth.onAuthStateChanged(
         instance,
-        (user) => {
+        async (user) => {
           receivedInitialState = true;
           clearTimeout(fallbackTimer);
-          callback({ status: user ? 'signed-in' : 'signed-out', user, error: '' });
+          if (!user) {
+            callback({ status: 'signed-out', user: null, error: '' });
+            return;
+          }
+          try {
+            await refreshUserToken(user);
+            callback({ status: 'signed-in', user, error: '' });
+          } catch {
+            callback({ status: 'signed-out', user: null, error: '\u8a8d\u8a3c\u60c5\u5831\u306e\u66f4\u65b0\u306b\u5931\u6557\u3057\u307e\u3057\u305f\u3002\u30ed\u30b0\u30a2\u30a6\u30c8\u3057\u3066\u5165\u308a\u76f4\u3057\u3066\u304f\u3060\u3055\u3044' });
+          }
         },
         () => {
           receivedInitialState = true;
@@ -113,6 +129,7 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
           loginTimeoutMs,
           'Firebase Auth login timed out'
         );
+        await refreshUserToken(credential.user);
         return { status: 'signed-in', user: credential.user, error: '' };
       } catch (error) {
         return { status: 'signed-out', user: null, error: mapAuthError(error) };
@@ -126,8 +143,8 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
   };
 }
 
-export function createAuthController({ firebaseConfig, authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs }) {
+export function createAuthController({ firebaseConfig, authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs, tokenRefreshTimeoutMs }) {
   return authIsRequired(firebaseConfig)
-    ? createFirebaseAuthController(firebaseConfig, { authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs })
+    ? createFirebaseAuthController(firebaseConfig, { authApiFactory, authLoadTimeoutMs, authStateTimeoutMs, loginTimeoutMs, tokenRefreshTimeoutMs })
     : createLocalAuthController();
 }

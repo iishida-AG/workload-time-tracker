@@ -143,8 +143,9 @@ test('firebase auth storage matcher only targets auth cache keys', () => {
 });
 
 test('shared state error shows the signed-in email and a re-login action', () => {
-  const html = renderSharedStateError('ag.rtagami@gmail.com');
+  const html = renderSharedStateError('ag.rtagami@gmail.com', { code: 'permission-denied', message: 'Missing or insufficient permissions.' });
   assert.match(html, /ag\.rtagami@gmail\.com/);
+  assert.match(html, /permission-denied/);
   assert.match(html, /data-action="force-logout"/);
 });
 

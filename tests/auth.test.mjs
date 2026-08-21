@@ -49,6 +49,61 @@ await test('firebase auth login returns an error instead of staying loading when
   assert.equal(result.error, 'ログインに失敗しました。通信状況を確認して再読み込みしてください');
 });
 
+await test('firebase auth login refreshes the id token before returning signed-in', async () => {
+  const calls = [];
+  const user = {
+    email: 'iishida@agentgate.jp',
+    getIdToken: async (forceRefresh) => {
+      calls.push(forceRefresh);
+      return 'fresh-token';
+    }
+  };
+  const controller = createAuthController({
+    firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
+    authApiFactory: async () => ({
+      instance: {},
+      auth: {
+        signInWithEmailAndPassword: async () => ({ user })
+      }
+    })
+  });
+
+  const result = await controller.login('iishida@agentgate.jp', 'password');
+
+  assert.equal(result.status, 'signed-in');
+  assert.deepEqual(calls, [true]);
+});
+
+await test('firebase auth subscribe refreshes the id token before reporting signed-in', async () => {
+  const calls = [];
+  const user = {
+    email: 'iishida@agentgate.jp',
+    getIdToken: async (forceRefresh) => {
+      calls.push(forceRefresh);
+      return 'fresh-token';
+    }
+  };
+  const controller = createAuthController({
+    firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
+    authApiFactory: async () => ({
+      instance: {},
+      auth: {
+        onAuthStateChanged: (_instance, onNext) => {
+          onNext(user);
+          return () => {};
+        }
+      }
+    })
+  });
+  const states = [];
+  const unsubscribe = await controller.subscribe((state) => states.push(state));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  unsubscribe();
+
+  assert.equal(states.at(-1).status, 'signed-in');
+  assert.deepEqual(calls, [true]);
+});
+
 await test('firebase auth subscribe returns to signed-out if initial auth state never arrives', async () => {
   const controller = createAuthController({
     firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
