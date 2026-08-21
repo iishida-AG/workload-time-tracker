@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createDashboardViewModel } from '../src/ui/view-model.js';
 import {
   buildUserUrl,
+  buildUrlWithoutLogout,
   countGoalTone,
   getCopyTextKey,
   getUserIdFromUrl,
@@ -10,7 +11,8 @@ import {
   nextMobileFocusedCell,
   nextSelectedTaskId,
   reviewTargetWeekStart,
-  selectedTaskAfterTimelineUse
+  selectedTaskAfterTimelineUse,
+  logoutIsRequested
 } from '../src/main.js';
 
 const jp = {
@@ -124,6 +126,12 @@ test('user URLs select Ishida or Tanoue and ignore invalid values', () => {
 
 test('buildUserUrl replaces the user query parameter', () => {
   assert.equal(buildUserUrl('https://example.github.io/workload/?user=ishida&week=2026-08-03', 'tanoue'), 'https://example.github.io/workload/?user=tanoue&week=2026-08-03');
+});
+
+test('logout URL helpers detect and remove the logout request', () => {
+  assert.equal(logoutIsRequested('https://example.github.io/workload/?user=ishida&logout=1'), true);
+  assert.equal(logoutIsRequested('https://example.github.io/workload/?user=ishida'), false);
+  assert.equal(buildUrlWithoutLogout('https://example.github.io/workload/?user=ishida&logout=1'), 'https://example.github.io/workload/?user=ishida');
 });
 
 test('countGoalTone marks achieved counts blue and missed counts red', () => {

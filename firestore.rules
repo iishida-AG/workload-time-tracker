@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowedUser() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'iishida@agentgate.jp',
+          'rtagami@agentgate.jp',
+          'ag.rtagami@agentgate.jp',
+          'ag.rtagami@gmail.com'
+        ];
+    }
+
+    match /workloadApps/default {
+      allow read, write: if isAllowedUser();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

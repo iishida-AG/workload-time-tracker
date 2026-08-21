@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-firestore-v4';
+import { createAuthController } from './state/auth.js?v=20260821-logout-v5';
 import {
   addProject,
   addTask,
@@ -101,6 +101,20 @@ export function getUserIdFromUrl(url, fallbackUserId = 'ishida') {
 export function buildUserUrl(url, userId) {
   const parsed = new URL(url);
   parsed.searchParams.set('user', validUserIds.has(userId) ? userId : 'ishida');
+  return parsed.toString();
+}
+
+export function logoutIsRequested(url) {
+  try {
+    return new URL(url).searchParams.get('logout') === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function buildUrlWithoutLogout(url) {
+  const parsed = new URL(url);
+  parsed.searchParams.delete('logout');
   return parsed.toString();
 }
 
@@ -2448,6 +2462,17 @@ function boot() {
   root.addEventListener('drop', handleDrop);
   root.addEventListener('submit', handleSubmit);
   root.innerHTML = '<div class="app-shell"><section class="panel">読み込み中...</section></div>';
+  if (logoutIsRequested(window.location.href)) {
+    root.innerHTML = '<div class="app-shell"><section class="panel">ログアウト中...</section></div>';
+    authController
+      .logout()
+      .catch((error) => console.error('Failed to logout from URL', error))
+      .finally(() => {
+        window.history.replaceState({}, '', buildUrlWithoutLogout(window.location.href));
+        startAuthFlow();
+      });
+    return;
+  }
   if (!planPromptTimer) {
     planPromptTimer = window.setInterval(() => {
       if (state && activeTab === 'dashboard') render();
