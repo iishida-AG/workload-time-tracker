@@ -669,6 +669,16 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   const goals = (state.weeklyGoals ?? []).filter((goal) =>
     matchesUser(goal, userId) && (periodMode === 'month' ? dates.has(goal.weekStart) : goal.weekStart === periodStart)
   );
+  const actionUserId = userId ?? 'ishida';
+  const goalActions = (state.weeklyGoalActions ?? []).filter((row) =>
+    matchesUser(row, actionUserId) && (periodMode === 'month' ? dates.has(row.weekStart) : row.weekStart === periodStart)
+  );
+  const actionByTask = new Map();
+  for (const action of goalActions) {
+    if (!actionByTask.has(action.taskId) || action.weekStart >= (actionByTask.get(action.taskId)?.weekStart ?? '')) {
+      actionByTask.set(action.taskId, action);
+    }
+  }
   const goalTotals = new Map();
   for (const goal of goals) {
     goalTotals.set(goal.taskId, (goalTotals.get(goal.taskId) ?? 0) + goal.targetCount);
@@ -686,7 +696,8 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
       actualCount,
       actualHours,
       productivity: actualHours === 0 ? 0 : round(actualCount / actualHours, 2),
-      progressRate: targetCount === 0 ? 0 : round((actualCount / targetCount) * 100, 1)
+      progressRate: targetCount === 0 ? 0 : round((actualCount / targetCount) * 100, 1),
+      nextAction: actionByTask.get(taskId)?.actionText ?? ''
     };
   });
 

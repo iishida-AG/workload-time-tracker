@@ -69,6 +69,11 @@ export function normalizeState(state, defaultUserId = 'ishida') {
       userId: goal.userId ?? defaultUserId,
       ...goal
     })),
+    weeklyGoalActions: (state.weeklyGoalActions ?? []).map((action) => ({
+      userId: action.userId ?? defaultUserId,
+      actionText: '',
+      ...action
+    })),
     monthlyProjectGoals: (state.monthlyProjectGoals ?? []).map((goal) => ({
       userId: goal.userId ?? defaultUserId,
       ...goal
@@ -416,6 +421,24 @@ export function upsertWeeklyGoal(state, weekStart, taskId, targetCount, userId =
       )
     : [...(state.weeklyGoals ?? []), { userId, weekStart, taskId, targetCount: normalizedTarget }];
   return { ...state, weeklyGoals };
+}
+
+export function upsertWeeklyGoalAction(state, weekStart, taskId, actionText, userId = 'ishida') {
+  const text = String(actionText ?? '');
+  const exists = (state.weeklyGoalActions ?? []).some(
+    (row) => (row.userId ?? 'ishida') === userId && row.weekStart === weekStart && row.taskId === taskId
+  );
+  const row = { userId, weekStart, taskId, actionText: text };
+  return {
+    ...state,
+    weeklyGoalActions: exists
+      ? (state.weeklyGoalActions ?? []).map((item) =>
+          (item.userId ?? 'ishida') === userId && item.weekStart === weekStart && item.taskId === taskId
+            ? row
+            : item
+        )
+      : [...(state.weeklyGoalActions ?? []), row]
+  };
 }
 
 export function setDailyCount(state, userId, date, taskId, count) {

@@ -59,6 +59,10 @@ const baseState = {
     { weekStart: '2026-08-03', taskId: 'proposal', targetCount: 12 },
     { weekStart: '2026-08-03', taskId: 'improve', targetCount: 2 }
   ],
+  weeklyGoalActions: [
+    { userId: 'ishida', weekStart: '2026-08-03', taskId: 'proposal', actionText: '提案後に追客' },
+    { userId: 'tanoue', weekStart: '2026-08-03', taskId: 'proposal', actionText: '別ユーザーの行動' }
+  ],
   dailyCounts: [
     { date: '2026-08-03', taskId: 'proposal', count: 5 },
     { date: '2026-08-04', taskId: 'proposal', count: 3 },
@@ -128,7 +132,8 @@ test('computeReviewMetrics summarizes goals, time, productivity, ratios, and pla
       actualCount: 8,
       actualHours: 3,
       productivity: 2.67,
-      progressRate: 66.7
+      progressRate: 66.7,
+      nextAction: '提案後に追客'
     },
     {
       taskId: 'improve',
@@ -137,7 +142,8 @@ test('computeReviewMetrics summarizes goals, time, productivity, ratios, and pla
       actualCount: 2,
       actualHours: 1,
       productivity: 2,
-      progressRate: 100
+      progressRate: 100,
+      nextAction: ''
     }
   ]);
   assert.deepEqual(metrics.topGaps, [
@@ -156,6 +162,10 @@ test('computeReviewMetrics scopes goal targets to the requested user', () => {
     dailyCounts: [
       { userId: 'ishida', date: '2026-08-03', taskId: 'proposal', count: 10 },
       { userId: 'tanoue', date: '2026-08-03', taskId: 'proposal', count: 50 }
+    ],
+    weeklyGoalActions: [
+      { userId: 'ishida', weekStart: '2026-08-03', taskId: 'proposal', actionText: '石田の次アクション' },
+      { userId: 'tanoue', weekStart: '2026-08-03', taskId: 'proposal', actionText: '田上の次アクション' }
     ]
   };
 
@@ -165,6 +175,7 @@ test('computeReviewMetrics scopes goal targets to the requested user', () => {
   assert.equal(metrics.goalRows[0].targetCount, 20);
   assert.equal(metrics.goalRows[0].actualCount, 10);
   assert.equal(metrics.goalRows[0].progressRate, 50);
+  assert.equal(metrics.goalRows[0].nextAction, '石田の次アクション');
 });
 
 test('computeReviewTimeBreakdown groups actual time by project and task', () => {

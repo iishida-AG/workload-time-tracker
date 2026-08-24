@@ -20,7 +20,8 @@ import {
   toggleWeeklyTodoItem,
   upsertWeeklyTodo,
   upsertWeeklyProjectGoal,
-  upsertWeeklyGoal
+  upsertWeeklyGoal,
+  upsertWeeklyGoalAction
 } from '../src/state/store.js';
 import { computeProjectCountSummaries, incrementDailyCount } from '../src/domain/metrics.js';
 
@@ -157,6 +158,23 @@ test('upsertWeeklyGoal replaces an existing target for the same task and week', 
   assert.equal(updated.weeklyGoals.find((goal) => goal.taskId === 'ses-sales-1').targetCount, 18);
 });
 
+test('upsertWeeklyGoalAction stores next actions per user week and task', () => {
+  const state = createAppState('2026-08-03');
+  const withIshidaAction = upsertWeeklyGoalAction(state, '2026-08-03', 'ses-sales-1', '既存BPに再提案', 'ishida');
+  const withTanoueAction = upsertWeeklyGoalAction(withIshidaAction, '2026-08-03', 'ses-sales-1', '候補者に確認', 'tanoue');
+  const updated = upsertWeeklyGoalAction(withTanoueAction, '2026-08-03', 'ses-sales-1', '午後に再提案', 'ishida');
+
+  assert.equal(updated.weeklyGoalActions.length, 2);
+  assert.equal(
+    updated.weeklyGoalActions.find((row) => row.userId === 'ishida' && row.taskId === 'ses-sales-1').actionText,
+    '午後に再提案'
+  );
+  assert.equal(
+    updated.weeklyGoalActions.find((row) => row.userId === 'tanoue' && row.taskId === 'ses-sales-1').actionText,
+    '候補者に確認'
+  );
+});
+
 test('count targets and weekly project visibility are scoped per user', () => {
   const state = createAppState('2026-08-03');
   const withIshidaTarget = upsertWeeklyGoal(state, '2026-08-03', 'ses-sales-1', 10, 'ishida');
@@ -201,6 +219,7 @@ test('normalizeState adds user fields and new collections to older local data', 
   assert.equal(normalized.dailyCounts[0].userId, 'tanoue');
   assert.deepEqual(normalized.timelineSettings, []);
   assert.deepEqual(normalized.weeklyProjectGoals, []);
+  assert.deepEqual(normalized.weeklyGoalActions, []);
   assert.deepEqual(normalized.monthlyProjectGoals, []);
   assert.ok(normalized.projects.some((project) => project.id === 'break-control'));
   assert.ok(normalized.tasks.some((task) => task.id === 'break-rest'));

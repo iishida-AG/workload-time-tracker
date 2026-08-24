@@ -45,6 +45,7 @@ import {
   upsertReview,
   upsertTimelineSetting,
   upsertWeeklyGoal,
+  upsertWeeklyGoalAction,
   upsertWeeklyTodo,
   upsertWeeklyProjectGoal
 } from './state/store.js';
@@ -497,8 +498,8 @@ function countFor(taskId, date, userId = activeUserId) {
   );
 }
 
-function weeklyCountFor(taskId, userId = activeUserId) {
-  const start = weekStart();
+function weeklyCountFor(taskId, userId = activeUserId, targetWeek = weekStart()) {
+  const start = targetWeek;
   const end = new Date(`${start}T00:00:00`);
   end.setDate(end.getDate() + 6);
   return state.dailyCounts
@@ -514,10 +515,10 @@ function weeklyCountFor(taskId, userId = activeUserId) {
     .reduce((sum, row) => sum + row.count, 0);
 }
 
-function weeklyTargetFor(taskId) {
+function weeklyTargetFor(taskId, userId = activeUserId, targetWeek = weekStart()) {
   return (
     state.weeklyGoals.find(
-      (goal) => (goal.userId ?? 'ishida') === activeUserId && goal.weekStart === weekStart() && goal.taskId === taskId
+      (goal) => (goal.userId ?? 'ishida') === userId && goal.weekStart === targetWeek && goal.taskId === taskId
     )?.targetCount ?? null
   );
 }
@@ -1396,7 +1397,6 @@ function renderProjectTaskCountsV2(projectId, tasks) {
                 <div class="monthly-progress-track" aria-hidden="true"><span style="width:${progressRate}%"></span></div>
               </div>
               <div class="weekly-count-inputs">
-                <label><span>今週目標</span><input type="number" min="0" step="1" value="${targetCount}" data-field="weekly-task-target" data-task-id="${escapeHtml(task.id)}" /></label>
                 <label><span>今日実績</span><input type="number" min="0" step="1" value="${todayCount}" data-field="daily-task-count" data-task-id="${escapeHtml(task.id)}" /></label>
               </div>
             </div>
@@ -1490,6 +1490,62 @@ function renderMonthlyProjectGoals() {
               </article>
             `
           )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
+function renderReviewWeeklyTargets() {
+  const targetWeek = reviewWeekStart();
+  const projects = state.projects
+    .filter((project) => project.status !== 'deleted')
+    .filter((project) =>
+      state.tasks.some((task) => task.projectId === project.id && task.countable && task.status !== 'deleted')
+    )
+    .sort((a, b) => a.order - b.order);
+
+  return `
+    <section class="panel review-weekly-target-panel">
+      <div class="panel-heading project-goal-heading">
+        <div>
+          <span class="section-kicker">週次目標件数</span>
+          <h2>${escapeHtml(targetWeek)} 週 / ${escapeHtml(displayUserLabel(activeUserId))}</h2>
+        </div>
+      </div>
+      <div class="project-goal-grid">
+        ${projects
+          .map((project) => {
+            const tasks = state.tasks
+              .filter((task) => task.projectId === project.id && task.countable && task.status !== 'deleted')
+              .sort((a, b) => a.order - b.order);
+            return `
+              <article class="project-goal-card review-weekly-target-card">
+                <h3>${escapeHtml(project.name)}</h3>
+                <div class="project-count-list">
+                  ${tasks
+                    .map((task) => {
+                      const targetCount = weeklyTargetFor(task.id, activeUserId, targetWeek) ?? 0;
+                      const actualCount = weeklyCountFor(task.id, activeUserId, targetWeek);
+                      const progressRate = targetCount > 0 ? Math.min(100, Math.round((actualCount / targetCount) * 100)) : 0;
+                      return `
+                        <div class="project-count-row review-target-row">
+                          <div class="project-count-main">
+                            <span class="project-count-task">${escapeHtml(task.name)}</span>
+                            <span class="project-count-meta count-tone-${countGoalTone(targetCount, actualCount)}">実績 ${actualCount}/${targetCount || '-'}件</span>
+                            <div class="monthly-progress-track" aria-hidden="true"><span style="width:${progressRate}%"></span></div>
+                          </div>
+                          <div class="weekly-count-inputs">
+                            <label><span>週次目標</span><input type="number" min="0" step="1" value="${targetCount}" data-field="weekly-task-target" data-week-start="${escapeHtml(targetWeek)}" data-task-id="${escapeHtml(task.id)}" /></label>
+                          </div>
+                        </div>
+                      `;
+                    })
+                    .join('')}
+                </div>
+              </article>
+            `;
+          })
           .join('')}
       </div>
     </section>
@@ -1636,14 +1692,14 @@ function renderMasterData() {
   `;
 }
 
-function renderGoalRows(metrics) {
+function renderGoalRows(metrics, targetWeek) {
   if (metrics.goalRows.length === 0) {
     return '<p class="empty-state">件数目標が未設定です</p>';
   }
   return `
     <div class="metric-table" role="table">
       <div class="metric-row header" role="row">
-        <span>小分類</span><span>目標</span><span>実績</span><span>投下時間</span><span>件/h</span>
+        <span>小分類</span><span>目標</span><span>実績</span><span>投下時間</span><span>件/h</span><span>次のアクション</span>
       </div>
       ${metrics.goalRows
         .map(
@@ -1657,6 +1713,9 @@ function renderGoalRows(metrics) {
               </span>
               <span>${row.actualHours}h</span>
               <span>${row.productivity}</span>
+              <label class="metric-action-cell">
+                <textarea data-field="weekly-goal-action" data-week-start="${escapeHtml(targetWeek)}" data-task-id="${escapeHtml(row.taskId)}" placeholder="次の一手を記入">${escapeHtml(row.nextAction ?? '')}</textarea>
+              </label>
             </div>
           `
         )
@@ -1820,6 +1879,9 @@ function renderReviewForm(review) {
 }
 
 function renderWeeklyReviewForm() {
+  const user = USERS.find((row) => row.id === activeUserId) ?? USERS[0];
+  const review = currentReviewFor(user.id);
+  const todo = weeklyTodoFor(user.id);
   return `
       <section class="panel review-form-panel weekly-review-panel">
         <div class="panel-heading compact">
@@ -1829,10 +1891,6 @@ function renderWeeklyReviewForm() {
           </div>
         </div>
         <div class="weekly-review-users">
-          ${USERS.map((user) => {
-            const review = currentReviewFor(user.id);
-            const todo = weeklyTodoFor(user.id);
-            return `
               <article class="weekly-review-user">
                 <h3>${escapeHtml(displayUserLabel(user.id))}</h3>
                 <div class="review-form">
@@ -1854,8 +1912,6 @@ function renderWeeklyReviewForm() {
                   </label>
                 </div>
               </article>
-            `;
-          }).join('')}
         </div>
       </section>
   `;
@@ -1869,6 +1925,7 @@ function renderReviewDashboard() {
   return `
     <div class="review-layout">
       ${renderWeeklyReviewForm()}
+      ${renderReviewWeeklyTargets()}
       ${renderMonthlyProjectGoals()}
       <section class="panel review-summary-panel">
         <div class="panel-heading">
@@ -1886,7 +1943,7 @@ function renderReviewDashboard() {
           <div class="summary-card">${icon('target')}<span>キャパ達成率</span><strong>${metrics.capacityRate}%</strong></div>
           <div class="summary-card">${icon('chart')}<span>目標行数</span><strong>${metrics.goalRows.length}</strong></div>
         </div>
-        ${renderGoalRows(metrics)}
+        ${renderGoalRows(metrics, targetWeek)}
       </section>
       <section class="panel">
         <div class="panel-heading compact">
@@ -2325,7 +2382,7 @@ function handleChange(event) {
     commit(upsertProjectGoalVisibility(state, activeUserId, target.dataset.projectId, target.checked));
   }
   if (target.dataset.field === 'weekly-task-target') {
-    commit(upsertWeeklyGoal(state, weekStart(), target.dataset.taskId, target.value, activeUserId));
+    commit(upsertWeeklyGoal(state, target.dataset.weekStart ?? weekStart(), target.dataset.taskId, target.value, activeUserId));
   }
   if (target.dataset.field === 'daily-task-count') {
     commit(setDailyCount(state, activeUserId, currentDate, target.dataset.taskId, target.value));
@@ -2393,6 +2450,19 @@ function handleInput(event) {
         ? upsertWeeklyTodo(reviewedState, weekStart(), reviewUserId, target.value)
         : reviewedState;
     commit(nextState, { render: false });
+    return;
+  }
+  if (target.dataset.field === 'weekly-goal-action') {
+    commit(
+      upsertWeeklyGoalAction(
+        state,
+        target.dataset.weekStart ?? reviewWeekStart(),
+        target.dataset.taskId,
+        target.value,
+        activeUserId
+      ),
+      { render: false }
+    );
     return;
   }
   if (target.dataset.field === 'weekly-project-goal') {

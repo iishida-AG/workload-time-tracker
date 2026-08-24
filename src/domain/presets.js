@@ -50,6 +50,7 @@ export function createInitialState(today) {
     weeklyGoals: firstCountableTask
       ? [{ weekStart, taskId: firstCountableTask.id, targetCount: 20 }]
       : [],
+    weeklyGoalActions: [],
     dailyCounts: [],
     weeklyReviews: [],
     timelineSettings: [],
