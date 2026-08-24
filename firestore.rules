@@ -1,3 +1,6 @@
+// Shared Firebase project rules.
+// Deploying Firestore rules replaces the whole project's ruleset, so keep
+// workload-time-tracker and SES CRM permissions together in this file.
 rules_version = '2';
 
 service cloud.firestore {
@@ -26,6 +29,10 @@ service cloud.firestore {
     }
 
     match /matchingLogs/{matchingLogId} {
+      allow read, create, update, delete: if isCrmOwner();
+    }
+
+    match /properProfiles/{properProfileId} {
       allow read, create, update, delete: if isCrmOwner();
     }
 
