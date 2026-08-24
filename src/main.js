@@ -157,6 +157,10 @@ export function countGoalTone(targetCount, actualCount) {
   return actualCount >= targetCount ? 'achieved' : 'missed';
 }
 
+export function monthlyGoalUserIdsForPage(userId) {
+  return [validUserIds.has(userId) ? userId : 'ishida'];
+}
+
 export function getCopyTextKey(label) {
   return `daily-copy-${label}`;
 }
@@ -1463,6 +1467,7 @@ function renderProjectTaskCounts(projectId, tasks) {
 
 function renderMonthlyProjectGoals() {
   const month = currentDate.slice(0, 7);
+  const goalUserIds = monthlyGoalUserIdsForPage(activeUserId);
   return `
     <section class="monthly-goal-panel">
       <div class="panel-heading project-goal-heading">
@@ -1478,14 +1483,16 @@ function renderMonthlyProjectGoals() {
               <article class="project-goal-card monthly-goal-card">
                 <h3>${escapeHtml(project.name)}</h3>
                 <div class="monthly-goal-fields">
-                  <label class="project-goal-text">
-                    <span>石田</span>
-                    <textarea data-field="monthly-project-goal" data-user-id="ishida" data-project-id="${escapeHtml(project.id)}" placeholder="今月の目標を自由に記入">${escapeHtml(monthlyProjectGoalFor('ishida', month, project.id))}</textarea>
-                  </label>
-                  <label class="project-goal-text">
-                    <span>田上</span>
-                    <textarea data-field="monthly-project-goal" data-user-id="tanoue" data-project-id="${escapeHtml(project.id)}" placeholder="今月の目標を自由に記入">${escapeHtml(monthlyProjectGoalFor('tanoue', month, project.id))}</textarea>
-                  </label>
+                  ${goalUserIds
+                    .map(
+                      (userId) => `
+                        <label class="project-goal-text">
+                          <span>${escapeHtml(displayUserLabel(userId))}</span>
+                          <textarea data-field="monthly-project-goal" data-user-id="${escapeHtml(userId)}" data-project-id="${escapeHtml(project.id)}" placeholder="今月の目標を自由に記入">${escapeHtml(monthlyProjectGoalFor(userId, month, project.id))}</textarea>
+                        </label>
+                      `
+                    )
+                    .join('')}
                 </div>
               </article>
             `

@@ -9,6 +9,7 @@ import {
   getUserIdFromUrl,
   isAppUndoShortcut,
   mobileFocusedHourLabel,
+  monthlyGoalUserIdsForPage,
   nextMobileFocusedCell,
   nextSelectedTaskId,
   reviewTargetWeekStart,
@@ -147,6 +148,12 @@ test('shared state error shows the signed-in email and a re-login action', () =>
   assert.match(html, /ag\.rtagami@gmail\.com/);
   assert.match(html, /permission-denied/);
   assert.match(html, /data-action="force-logout"/);
+});
+
+test('monthly goal settings use only the active page user', () => {
+  assert.deepEqual(monthlyGoalUserIdsForPage('ishida'), ['ishida']);
+  assert.deepEqual(monthlyGoalUserIdsForPage('tanoue'), ['tanoue']);
+  assert.deepEqual(monthlyGoalUserIdsForPage('unknown'), ['ishida']);
 });
 
 test('countGoalTone marks achieved counts blue and missed counts red', () => {
