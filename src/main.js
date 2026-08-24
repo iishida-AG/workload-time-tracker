@@ -23,7 +23,7 @@ import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
-import { createAuthController } from './state/auth.js?v=20260821-auth-retry-v8';
+import { createAuthController } from './state/auth.js?v=20260824-google-login-v1';
 import {
   addProject,
   addTask,
@@ -222,6 +222,11 @@ function renderAuthGate() {
         <span class="section-kicker">ログイン</span>
         <h1>石田・田上だけが使えるようにしています</h1>
         <p>URLを知っていても、Firebaseに登録されたメールアドレスとパスワードでログインしないと共有データは開けません。</p>
+        <button class="primary-button auth-google-button" type="button" data-action="google-login">
+          ${icon('user')}
+          <span>Googleでログイン</span>
+        </button>
+        <div class="auth-divider">またはメールアドレスでログイン</div>
         <form class="auth-form" data-form="login">
           <label>
             <span>メールアドレス</span>
@@ -2034,6 +2039,27 @@ function handleClick(event) {
   }
   if (action === 'logout' || action === 'force-logout') {
     logoutAndReload();
+  }
+  if (action === 'google-login') {
+    authState = { status: 'loading', user: null, error: '' };
+    root.innerHTML = renderAuthGate();
+    authController
+      .loginWithGoogle()
+      .then((nextAuthState) => {
+        authState = nextAuthState;
+        if (nextAuthState.status === 'signed-in') {
+          if (!unsubscribeState) {
+            subscribeSharedState();
+          }
+          return;
+        }
+        root.innerHTML = renderAuthGate();
+      })
+      .catch((error) => {
+        console.error('Failed to login with Google', error);
+        authState = { status: 'signed-out', user: null, error: 'Googleログインに失敗しました' };
+        root.innerHTML = renderAuthGate();
+      });
   }
   if (action === 'select-task') {
     selectedTaskId = nextSelectedTaskId(selectedTaskId, button.dataset.taskId);

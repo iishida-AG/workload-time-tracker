@@ -16,6 +16,9 @@ function createLocalAuthController() {
     async login() {
       return { status: 'signed-in', user: { email: 'local' }, error: '' };
     },
+    async loginWithGoogle() {
+      return { status: 'signed-in', user: { email: 'local' }, error: '' };
+    },
     async logout() {
       return { status: 'signed-in', user: { email: 'local' }, error: '' };
     }
@@ -33,6 +36,12 @@ function mapAuthError(error) {
   }
   if (code.includes('too-many-requests')) {
     return '\u30ed\u30b0\u30a4\u30f3\u8a66\u884c\u304c\u591a\u3059\u304e\u307e\u3059\u3002\u5c11\u3057\u6642\u9593\u3092\u304a\u3044\u3066\u304f\u3060\u3055\u3044';
+  }
+  if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) {
+    return 'Googleログインがキャンセルされました';
+  }
+  if (code.includes('operation-not-allowed')) {
+    return 'GoogleログインがFirebase側で有効になっていません';
   }
   return '\u30ed\u30b0\u30a4\u30f3\u306b\u5931\u6557\u3057\u307e\u3057\u305f';
 }
@@ -126,6 +135,22 @@ function createFirebaseAuthController(firebaseConfig, options = {}) {
         const { auth, instance } = await withTimeout(getAuthApi(), authLoadTimeoutMs, 'Firebase Auth loading timed out');
         const credential = await withTimeout(
           auth.signInWithEmailAndPassword(instance, email, password),
+          loginTimeoutMs,
+          'Firebase Auth login timed out'
+        );
+        await refreshUserToken(credential.user);
+        return { status: 'signed-in', user: credential.user, error: '' };
+      } catch (error) {
+        return { status: 'signed-out', user: null, error: mapAuthError(error) };
+      }
+    },
+    async loginWithGoogle() {
+      try {
+        const { auth, instance } = await withTimeout(getAuthApi(), authLoadTimeoutMs, 'Firebase Auth loading timed out');
+        const provider = new auth.GoogleAuthProvider();
+        provider.setCustomParameters?.({ prompt: 'select_account' });
+        const credential = await withTimeout(
+          auth.signInWithPopup(instance, provider),
           loginTimeoutMs,
           'Firebase Auth login timed out'
         );

@@ -74,6 +74,34 @@ await test('firebase auth login refreshes the id token before returning signed-i
   assert.deepEqual(calls, [true]);
 });
 
+await test('firebase Google login refreshes the id token before returning signed-in', async () => {
+  const calls = [];
+  const user = {
+    email: 'iishida@agentgate.jp',
+    getIdToken: async (forceRefresh) => {
+      calls.push(forceRefresh);
+      return 'fresh-token';
+    }
+  };
+  const controller = createAuthController({
+    firebaseConfig: { apiKey: 'api', projectId: 'project', appId: 'app' },
+    authApiFactory: async () => ({
+      instance: {},
+      auth: {
+        GoogleAuthProvider: class GoogleAuthProvider {
+          setCustomParameters() {}
+        },
+        signInWithPopup: async () => ({ user })
+      }
+    })
+  });
+
+  const result = await controller.loginWithGoogle();
+
+  assert.equal(result.status, 'signed-in');
+  assert.deepEqual(calls, [true]);
+});
+
 await test('firebase auth subscribe refreshes the id token before reporting signed-in', async () => {
   const calls = [];
   const user = {
