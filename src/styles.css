@@ -1647,6 +1647,31 @@ main {
   overflow-wrap: anywhere;
 }
 
+.goal-progress-cell {
+  display: grid;
+  gap: 5px;
+}
+
+.goal-progress-cell strong {
+  font-size: 13px;
+}
+
+.goal-progress-bar {
+  display: block;
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef6;
+}
+
+.goal-progress-bar b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2364d2, #1f9d6a);
+}
+
 .ratio-card {
   display: grid;
   grid-template-columns: 160px minmax(0, 1fr);
@@ -1712,9 +1737,49 @@ main {
   white-space: nowrap;
 }
 
+.time-breakdown-project-head b,
+.time-breakdown-task-line b {
+  font-weight: 900;
+}
+
+.time-breakdown-project-head .over,
+.time-breakdown-task-line .over {
+  color: #dc2626;
+}
+
+.time-breakdown-project-head .under,
+.time-breakdown-task-line .under {
+  color: #2364d2;
+}
+
+.time-breakdown-project-head .same,
+.time-breakdown-task-line .same {
+  color: #1f9d6a;
+}
+
 .time-breakdown-task {
   display: grid;
   gap: 5px;
+}
+
+.plan-actual-bars,
+.task-plan-actual-bars {
+  display: grid;
+  gap: 5px;
+}
+
+.plan-actual-bars div {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.plan-actual-bars em {
+  color: #667085;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .time-breakdown-track {
@@ -1729,6 +1794,10 @@ main {
   display: block;
   height: 100%;
   border-radius: inherit;
+}
+
+.plan-track span {
+  background: #93c5fd;
 }
 
 .project-track span {
@@ -2075,6 +2144,16 @@ main {
 
   .shortcut-minute-actions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .time-breakdown-project-head,
+  .time-breakdown-task-line {
+    flex-direction: column;
+  }
+
+  .time-breakdown-project-head span,
+  .time-breakdown-task-line strong {
+    white-space: normal;
   }
 
   .project-goal-card-header {

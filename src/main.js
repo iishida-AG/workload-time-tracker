@@ -2,9 +2,9 @@ import { addDays, getMonthDates, getTimelineHours, getWeekDates, getWeekStart, t
 import { TASK_NATURES } from './domain/presets.js';
 import {
   clearTimelineEntry,
+  computePlanActualTimeBreakdown,
   computeProjectCountSummaries,
   computeReviewMetrics,
-  computeReviewTimeBreakdown,
   copyPlanToActuals,
   copyPlanHourToActual,
   addActualMinutes,
@@ -19,7 +19,7 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260824-review-breakdown-v1';
+} from './domain/metrics.js?v=20260824-review-gap-v1';
 import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
@@ -1651,7 +1651,10 @@ function renderGoalRows(metrics) {
             <div class="metric-row" role="row">
               <span>${escapeHtml(row.taskName)}</span>
               <span>${row.targetCount}</span>
-              <span>${row.actualCount} (${row.progressRate}%)</span>
+              <span class="goal-progress-cell">
+                <strong>${row.actualCount} (${row.progressRate}%)</strong>
+                <i class="goal-progress-bar" aria-hidden="true"><b style="width:${Math.min(100, Math.max(0, row.progressRate))}%"></b></i>
+              </span>
               <span>${row.actualHours}h</span>
               <span>${row.productivity}</span>
             </div>
@@ -1738,11 +1741,13 @@ function renderProjectTimePie(periodStart, periodMode) {
 }
 
 function renderReviewTimeBreakdown(periodStart, periodMode) {
-  const rows = computeReviewTimeBreakdown(state, periodStart, { periodMode, userId: activeUserId });
+  const rows = computePlanActualTimeBreakdown(state, periodStart, { periodMode, userId: activeUserId });
   if (rows.length === 0) {
-    return '<p class="empty-state compact">大分類・小分類別の実績時間はまだありません</p>';
+    return '<p class="empty-state compact">大分類・小分類別の予定・実績時間はまだありません</p>';
   }
-  const totalMinutes = rows.reduce((sum, row) => sum + row.minutes, 0);
+  const maxProjectMinutes = Math.max(...rows.map((row) => Math.max(row.plannedMinutes, row.actualMinutes)), 1);
+  const diffLabel = (hours) => `${hours > 0 ? '+' : ''}${hours}h`;
+  const diffClass = (minutes) => (minutes > 0 ? 'over' : minutes < 0 ? 'under' : 'same');
   return `
     <div class="time-breakdown-list">
       ${rows
@@ -1751,10 +1756,11 @@ function renderReviewTimeBreakdown(periodStart, periodMode) {
             <article class="time-breakdown-project">
               <div class="time-breakdown-project-head">
                 <strong>${escapeHtml(project.projectName)}</strong>
-                <span>${project.hours}h / ${project.ratio}%</span>
+                <span>予定 ${project.plannedHours}h / 実績 ${project.actualHours}h / <b class="${diffClass(project.diffMinutes)}">${diffLabel(project.diffHours)}</b></span>
               </div>
-              <div class="time-breakdown-track project-track" aria-hidden="true">
-                <span style="width:${totalMinutes > 0 ? Math.min(100, project.ratio) : 0}%"></span>
+              <div class="plan-actual-bars" aria-hidden="true">
+                <div><em>予定</em><i class="time-breakdown-track plan-track"><span style="width:${Math.min(100, (project.plannedMinutes / maxProjectMinutes) * 100)}%"></span></i></div>
+                <div><em>実績</em><i class="time-breakdown-track project-track"><span style="width:${Math.min(100, (project.actualMinutes / maxProjectMinutes) * 100)}%"></span></i></div>
               </div>
               <div class="time-breakdown-task-list">
                 ${project.tasks
@@ -1763,10 +1769,11 @@ function renderReviewTimeBreakdown(periodStart, periodMode) {
                       <div class="time-breakdown-task">
                         <div class="time-breakdown-task-line">
                           <span>${escapeHtml(task.taskName)}</span>
-                          <strong>${task.hours}h</strong>
+                          <strong>予定 ${task.plannedHours}h / 実績 ${task.actualHours}h / <b class="${diffClass(task.diffMinutes)}">${diffLabel(task.diffHours)}</b></strong>
                         </div>
-                        <div class="time-breakdown-track task-track" aria-hidden="true">
-                          <span style="width:${Math.min(100, task.ratio)}%"></span>
+                        <div class="task-plan-actual-bars" aria-hidden="true">
+                          <i class="time-breakdown-track plan-track"><span style="width:${Math.min(100, (task.plannedMinutes / Math.max(project.plannedMinutes, project.actualMinutes, 1)) * 100)}%"></span></i>
+                          <i class="time-breakdown-track task-track"><span style="width:${Math.min(100, (task.actualMinutes / Math.max(project.plannedMinutes, project.actualMinutes, 1)) * 100)}%"></span></i>
                         </div>
                       </div>
                     `

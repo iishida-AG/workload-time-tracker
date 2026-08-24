@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  computePlanActualTimeBreakdown,
   computeReviewTimeBreakdown,
   computeReviewMetrics,
   copyPlanToActuals,
@@ -194,6 +195,71 @@ test('computeReviewTimeBreakdown groups actual time by project and task', () => 
       hours: 0.5,
       ratio: 25,
       tasks: [{ taskId: 'admin', taskName: '事務処理', minutes: 30, hours: 0.5, ratio: 100 }]
+    }
+  ]);
+});
+
+test('computePlanActualTimeBreakdown compares planned and actual time by project and task', () => {
+  const state = {
+    ...baseState,
+    dayPlans: [
+      { userId: 'ishida', date: '2026-08-03', hour: 9, items: [{ taskId: 'proposal', minutes: 60 }] },
+      { userId: 'ishida', date: '2026-08-03', hour: 10, items: [{ taskId: 'proposal', minutes: 30 }, { taskId: 'admin', minutes: 30 }] },
+      { userId: 'tanoue', date: '2026-08-03', hour: 9, items: [{ taskId: 'improve', minutes: 60 }] }
+    ],
+    dayActuals: [
+      { userId: 'ishida', date: '2026-08-03', hour: 9, items: [{ taskId: 'proposal', minutes: 60 }] },
+      { userId: 'ishida', date: '2026-08-03', hour: 10, items: [{ taskId: 'admin', minutes: 60 }] },
+      { userId: 'tanoue', date: '2026-08-03', hour: 9, items: [{ taskId: 'improve', minutes: 60 }] }
+    ]
+  };
+
+  const rows = computePlanActualTimeBreakdown(state, '2026-08-03', { userId: 'ishida' });
+
+  assert.deepEqual(rows, [
+    {
+      projectId: 'p-sales',
+      projectName: '営業',
+      plannedMinutes: 90,
+      actualMinutes: 60,
+      diffMinutes: -30,
+      plannedHours: 1.5,
+      actualHours: 1,
+      diffHours: -0.5,
+      tasks: [
+        {
+          taskId: 'proposal',
+          taskName: '提案',
+          plannedMinutes: 90,
+          actualMinutes: 60,
+          diffMinutes: -30,
+          plannedHours: 1.5,
+          actualHours: 1,
+          diffHours: -0.5
+        }
+      ]
+    },
+    {
+      projectId: 'p-admin',
+      projectName: '雑務',
+      plannedMinutes: 30,
+      actualMinutes: 60,
+      diffMinutes: 30,
+      plannedHours: 0.5,
+      actualHours: 1,
+      diffHours: 0.5,
+      tasks: [
+        {
+          taskId: 'admin',
+          taskName: '事務処理',
+          plannedMinutes: 30,
+          actualMinutes: 60,
+          diffMinutes: 30,
+          plannedHours: 0.5,
+          actualHours: 1,
+          diffHours: 0.5
+        }
+      ]
     }
   ]);
 });

@@ -576,6 +576,68 @@ export function computeReviewTimeBreakdown(state, periodStart, options = {}) {
     }));
 }
 
+function addTimelineMinutesToBreakdown(rows, entries, dates, userId, tasks, projects, fieldName) {
+  for (const entry of (entries ?? []).filter((row) => withinDates(row, dates) && matchesUser(row, userId))) {
+    for (const item of getActualItems(entry)) {
+      const task = tasks.get(item.taskId);
+      if (!isReviewTask(task)) continue;
+      const project = projects.get(task.projectId);
+      if (!project) continue;
+      const projectRow = rows.get(project.id) ?? {
+        projectId: project.id,
+        projectName: project.name,
+        plannedMinutes: 0,
+        actualMinutes: 0,
+        tasks: new Map()
+      };
+      const taskRow = projectRow.tasks.get(task.id) ?? {
+        taskId: task.id,
+        taskName: task.name,
+        plannedMinutes: 0,
+        actualMinutes: 0
+      };
+      taskRow[fieldName] += item.minutes;
+      projectRow[fieldName] += item.minutes;
+      projectRow.tasks.set(task.id, taskRow);
+      rows.set(project.id, projectRow);
+    }
+  }
+}
+
+function withPlanActualHours(row) {
+  const diffMinutes = row.actualMinutes - row.plannedMinutes;
+  return {
+    ...row,
+    diffMinutes,
+    plannedHours: round(row.plannedMinutes / 60, 2),
+    actualHours: round(row.actualMinutes / 60, 2),
+    diffHours: round(diffMinutes / 60, 2)
+  };
+}
+
+export function computePlanActualTimeBreakdown(state, periodStart, options = {}) {
+  const periodMode = options.periodMode ?? 'week';
+  const userId = options.userId;
+  const dates = new Set(periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart));
+  const tasks = taskById(state.tasks ?? []);
+  const projects = projectById(state.projects ?? []);
+  const projectRows = new Map();
+
+  addTimelineMinutesToBreakdown(projectRows, state.dayPlans, dates, userId, tasks, projects, 'plannedMinutes');
+  addTimelineMinutesToBreakdown(projectRows, state.dayActuals, dates, userId, tasks, projects, 'actualMinutes');
+
+  return [...projectRows.values()]
+    .map((projectRow) => ({
+      ...withPlanActualHours({
+        ...projectRow,
+        tasks: [...projectRow.tasks.values()]
+          .map(withPlanActualHours)
+          .sort((a, b) => b.plannedMinutes + b.actualMinutes - (a.plannedMinutes + a.actualMinutes))
+      })
+    }))
+    .sort((a, b) => b.plannedMinutes + b.actualMinutes - (a.plannedMinutes + a.actualMinutes));
+}
+
 export function computeReviewMetrics(state, periodStart, options = {}) {
   const periodMode = options.periodMode ?? 'week';
   const userId = options.userId;
