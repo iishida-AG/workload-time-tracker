@@ -4,6 +4,7 @@ import {
   clearTimelineEntry,
   computeProjectCountSummaries,
   computeReviewMetrics,
+  computeReviewTimeBreakdown,
   copyPlanToActuals,
   copyPlanHourToActual,
   addActualMinutes,
@@ -18,7 +19,7 @@ import {
   setTimelineNote,
   updateActualItem,
   updatePlanItem
-} from './domain/metrics.js?v=20260817-home-link-v1';
+} from './domain/metrics.js?v=20260824-review-breakdown-v1';
 import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
 import { createStateAdapter } from './state/firebase-sync.js';
@@ -1736,6 +1737,50 @@ function renderProjectTimePie(periodStart, periodMode) {
   `;
 }
 
+function renderReviewTimeBreakdown(periodStart, periodMode) {
+  const rows = computeReviewTimeBreakdown(state, periodStart, { periodMode, userId: activeUserId });
+  if (rows.length === 0) {
+    return '<p class="empty-state compact">大分類・小分類別の実績時間はまだありません</p>';
+  }
+  const totalMinutes = rows.reduce((sum, row) => sum + row.minutes, 0);
+  return `
+    <div class="time-breakdown-list">
+      ${rows
+        .map(
+          (project) => `
+            <article class="time-breakdown-project">
+              <div class="time-breakdown-project-head">
+                <strong>${escapeHtml(project.projectName)}</strong>
+                <span>${project.hours}h / ${project.ratio}%</span>
+              </div>
+              <div class="time-breakdown-track project-track" aria-hidden="true">
+                <span style="width:${totalMinutes > 0 ? Math.min(100, project.ratio) : 0}%"></span>
+              </div>
+              <div class="time-breakdown-task-list">
+                ${project.tasks
+                  .map(
+                    (task) => `
+                      <div class="time-breakdown-task">
+                        <div class="time-breakdown-task-line">
+                          <span>${escapeHtml(task.taskName)}</span>
+                          <strong>${task.hours}h</strong>
+                        </div>
+                        <div class="time-breakdown-track task-track" aria-hidden="true">
+                          <span style="width:${Math.min(100, task.ratio)}%"></span>
+                        </div>
+                      </div>
+                    `
+                  )
+                  .join('')}
+              </div>
+            </article>
+          `
+        )
+        .join('')}
+    </div>
+  `;
+}
+
 function renderReviewForm(review) {
   return `
       <section class="panel review-form-panel">
@@ -1845,6 +1890,13 @@ function renderReviewDashboard() {
         </div>
         ${renderPie(metrics)}
         ${renderProjectTimePie(periodStart, reviewMode)}
+        <div class="panel-heading compact time-breakdown-heading">
+          <div>
+            <span class="section-kicker">実績時間の内訳</span>
+            <h2>大分類・小分類別</h2>
+          </div>
+        </div>
+        ${renderReviewTimeBreakdown(periodStart, reviewMode)}
       </section>
       <section class="panel">
         <div class="panel-heading compact">

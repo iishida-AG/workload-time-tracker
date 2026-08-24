@@ -523,6 +523,59 @@ export function computeProjectCountSummaries(state, userId, weekStart) {
     });
 }
 
+export function computeReviewTimeBreakdown(state, periodStart, options = {}) {
+  const periodMode = options.periodMode ?? 'week';
+  const userId = options.userId;
+  const dates = new Set(periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart));
+  const tasks = taskById(state.tasks ?? []);
+  const projects = projectById(state.projects ?? []);
+  const projectTotals = new Map();
+
+  for (const entry of (state.dayActuals ?? []).filter((row) => withinDates(row, dates) && matchesUser(row, userId))) {
+    for (const item of getActualItems(entry)) {
+      const task = tasks.get(item.taskId);
+      if (!isReviewTask(task)) continue;
+      const project = projects.get(task.projectId);
+      if (!project) continue;
+      const projectRow = projectTotals.get(project.id) ?? {
+        projectId: project.id,
+        projectName: project.name,
+        minutes: 0,
+        tasks: new Map()
+      };
+      const taskRow = projectRow.tasks.get(task.id) ?? {
+        taskId: task.id,
+        taskName: task.name,
+        minutes: 0
+      };
+      taskRow.minutes += item.minutes;
+      projectRow.minutes += item.minutes;
+      projectRow.tasks.set(task.id, taskRow);
+      projectTotals.set(project.id, projectRow);
+    }
+  }
+
+  const totalMinutes = [...projectTotals.values()].reduce((sum, row) => sum + row.minutes, 0);
+  return [...projectTotals.values()]
+    .sort((a, b) => b.minutes - a.minutes)
+    .map((projectRow) => ({
+      projectId: projectRow.projectId,
+      projectName: projectRow.projectName,
+      minutes: projectRow.minutes,
+      hours: round(projectRow.minutes / 60, 2),
+      ratio: totalMinutes === 0 ? 0 : round((projectRow.minutes / totalMinutes) * 100, 1),
+      tasks: [...projectRow.tasks.values()]
+        .sort((a, b) => b.minutes - a.minutes)
+        .map((taskRow) => ({
+          taskId: taskRow.taskId,
+          taskName: taskRow.taskName,
+          minutes: taskRow.minutes,
+          hours: round(taskRow.minutes / 60, 2),
+          ratio: projectRow.minutes === 0 ? 0 : round((taskRow.minutes / projectRow.minutes) * 100, 1)
+        }))
+    }));
+}
+
 export function computeReviewMetrics(state, periodStart, options = {}) {
   const periodMode = options.periodMode ?? 'week';
   const userId = options.userId;
@@ -552,7 +605,7 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   );
 
   const goals = (state.weeklyGoals ?? []).filter((goal) =>
-    periodMode === 'month' ? dates.has(goal.weekStart) : goal.weekStart === periodStart
+    matchesUser(goal, userId) && (periodMode === 'month' ? dates.has(goal.weekStart) : goal.weekStart === periodStart)
   );
   const goalTotals = new Map();
   for (const goal of goals) {

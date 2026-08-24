@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  computeReviewTimeBreakdown,
   computeReviewMetrics,
   copyPlanToActuals,
   getImprovementPromiseForWeek,
@@ -141,6 +142,59 @@ test('computeReviewMetrics summarizes goals, time, productivity, ratios, and pla
   assert.deepEqual(metrics.topGaps, [
     { hour: 10, plannedTaskName: '事務処理', actualTaskName: '提案' },
     { hour: 11, plannedTaskName: '提案', actualTaskName: '事務処理' }
+  ]);
+});
+
+test('computeReviewMetrics scopes goal targets to the requested user', () => {
+  const state = {
+    ...baseState,
+    weeklyGoals: [
+      { userId: 'ishida', weekStart: '2026-08-03', taskId: 'proposal', targetCount: 20 },
+      { userId: 'tanoue', weekStart: '2026-08-03', taskId: 'proposal', targetCount: 100 }
+    ],
+    dailyCounts: [
+      { userId: 'ishida', date: '2026-08-03', taskId: 'proposal', count: 10 },
+      { userId: 'tanoue', date: '2026-08-03', taskId: 'proposal', count: 50 }
+    ]
+  };
+
+  const metrics = computeReviewMetrics(state, '2026-08-03', { userId: 'ishida' });
+
+  assert.equal(metrics.goalRows.length, 1);
+  assert.equal(metrics.goalRows[0].targetCount, 20);
+  assert.equal(metrics.goalRows[0].actualCount, 10);
+  assert.equal(metrics.goalRows[0].progressRate, 50);
+});
+
+test('computeReviewTimeBreakdown groups actual time by project and task', () => {
+  const state = {
+    ...baseState,
+    dayActuals: [
+      { userId: 'ishida', date: '2026-08-03', hour: 9, taskId: 'proposal' },
+      { userId: 'ishida', date: '2026-08-03', hour: 10, items: [{ taskId: 'proposal', minutes: 30 }, { taskId: 'admin', minutes: 30 }] },
+      { userId: 'tanoue', date: '2026-08-03', hour: 9, taskId: 'improve' }
+    ]
+  };
+
+  const rows = computeReviewTimeBreakdown(state, '2026-08-03', { userId: 'ishida' });
+
+  assert.deepEqual(rows, [
+    {
+      projectId: 'p-sales',
+      projectName: '営業',
+      minutes: 90,
+      hours: 1.5,
+      ratio: 75,
+      tasks: [{ taskId: 'proposal', taskName: '提案', minutes: 90, hours: 1.5, ratio: 100 }]
+    },
+    {
+      projectId: 'p-admin',
+      projectName: '雑務',
+      minutes: 30,
+      hours: 0.5,
+      ratio: 25,
+      tasks: [{ taskId: 'admin', taskName: '事務処理', minutes: 30, hours: 0.5, ratio: 100 }]
+    }
   ]);
 });
 
