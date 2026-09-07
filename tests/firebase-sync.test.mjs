@@ -231,3 +231,97 @@ await test('createFirestoreStateAdapter saves user-scoped rows to the active use
   ]);
   assert.equal(writes.some((write) => write.path === 'workloadApps/default/users/tanoue'), false);
 });
+
+await test('createFirestoreStateAdapter removes active-user deletions without copying other user documents to the root', async () => {
+  const writes = [];
+  const adapter = createFirestoreStateAdapter({ apiKey: 'api', projectId: 'project', appId: 'app' }, '2026-09-07', {
+    getFirebaseApp: async () => ({}),
+    importFirebaseFirestoreModule: async () => ({
+      getFirestore: () => ({}),
+      doc: (_db, ...segments) => ({ path: segments.join('/') }),
+      runTransaction: async (_db, callback) =>
+        callback({
+          get: async (ref) => ({
+            exists: () => true,
+            data: () => ref.path === 'workloadApps/default'
+              ? {
+                  projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
+                  tasks: [{ id: 't1', projectId: 'p1', name: 'Proposal', nature: 'core', countable: true, status: 'active', order: 1 }],
+                  quarterGoals: [{ userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't1', targetCount: 80 }]
+                }
+              : {
+                  quarterGoals: [{ userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 120 }],
+                  quarterGoalNotes: [{ userId: 'ishida', quarterStart: '2026-09-01', items: [{ id: 'q1', text: 'Old goal' }] }]
+                }
+          }),
+          set: (ref, data) => writes.push({ path: ref.path, data })
+        })
+    })
+  });
+
+  await adapter.save(
+    {
+      projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
+      tasks: [{ id: 't1', projectId: 'p1', name: 'Proposal', nature: 'core', countable: true, status: 'active', order: 1 }],
+      quarterGoals: [{ userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't2', targetCount: 40 }],
+      quarterGoalNotes: []
+    },
+    { userId: 'ishida' }
+  );
+
+  const userWrite = writes.find((write) => write.path === 'workloadApps/default/users/ishida');
+  const rootWrite = writes.find((write) => write.path === 'workloadApps/default');
+  assert.deepEqual(userWrite.data.quarterGoals, []);
+  assert.deepEqual(userWrite.data.quarterGoalNotes, []);
+  assert.deepEqual(rootWrite.data.quarterGoals, [
+    { userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't1', targetCount: 80 }
+  ]);
+});
+
+await test('createFirestoreStateAdapter serializes rapid saves in call order', async () => {
+  const starts = [];
+  let releaseFirst;
+  let markFirstStarted;
+  const firstStarted = new Promise((resolve) => {
+    markFirstStarted = resolve;
+  });
+  const firstBlocked = new Promise((resolve) => {
+    releaseFirst = resolve;
+  });
+  const adapter = createFirestoreStateAdapter({ apiKey: 'api', projectId: 'project', appId: 'app' }, '2026-09-07', {
+    getFirebaseApp: async () => ({}),
+    importFirebaseFirestoreModule: async () => ({
+      getFirestore: () => ({}),
+      doc: (_db, ...segments) => ({ path: segments.join('/') }),
+      runTransaction: async (_db, callback) => {
+        const callIndex = starts.length;
+        starts.push(callIndex + 1);
+        if (callIndex === 0) {
+          markFirstStarted();
+          await firstBlocked;
+        }
+        await callback({
+          get: async () => ({ exists: () => false, data: () => ({}) }),
+          set: () => {}
+        });
+      }
+    })
+  });
+  const base = {
+    projects: [{ id: 'p1', name: 'Sales', order: 1, status: 'active' }],
+    tasks: [{ id: 't1', projectId: 'p1', name: 'Proposal', nature: 'core', countable: true, status: 'active', order: 1 }]
+  };
+
+  const firstSave = adapter.save({ ...base, weeklyGoalNotes: [] }, { userId: 'ishida' });
+  const secondSave = adapter.save({
+    ...base,
+    weeklyGoalNotes: [{ userId: 'ishida', weekStart: '2026-09-07', items: [{ id: 'n1', text: 'newer' }] }]
+  }, { userId: 'ishida' });
+
+  await firstStarted;
+  await Promise.resolve();
+  assert.deepEqual(starts, [1]);
+  releaseFirst();
+  await Promise.all([firstSave, secondSave]);
+  assert.deepEqual(starts, [1, 2]);
+});

@@ -234,7 +234,7 @@ function renderTimeAnalysisCard(view) {
     <div class="panel-heading compact"><div><span class="section-kicker">工数分析</span><h2>予定と実績</h2></div></div>
     ${empty
       ? '<p class="empty-state compact">選択した週の予定・実績工数はまだありません</p>'
-      : `<div class="review-time-grid">
+      : `<div class="review-time-grid${metrics.projectRows.length === 0 ? ' no-pie' : ''}">
           ${renderActualTimePie(metrics.projectRows, metrics.totalActualHours)}
           ${renderTimeBars(metrics.planActualRows)}
         </div>`}

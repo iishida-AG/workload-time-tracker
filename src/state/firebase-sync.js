@@ -57,11 +57,16 @@ export function mergeSharedStateForSave(remoteState, localNextState) {
   return normalizeState(merged);
 }
 
-function rootStateForSave(state) {
+function rootStateForSave(state, activeUserId, legacyState = state) {
   const normalized = normalizeState(state ?? {});
+  const legacy = normalizeState(legacyState ?? {});
   const rootState = { ...normalized };
   for (const collectionName of userScopedCollectionNames) {
-    rootState[collectionName] = [];
+    rootState[collectionName] = activeUserId
+      ? legacy[collectionName].filter(
+          (row) => (row.userId ?? 'ishida') !== activeUserId
+        )
+      : [];
   }
   return rootState;
 }
@@ -78,18 +83,6 @@ function userStateForSave(state, userId) {
     );
   }
   return userState;
-}
-
-function mergeUserStateForSave(remoteState, localNextState, userId) {
-  const remote = normalizeState({ ...(remoteState ?? {}), projects: [], tasks: [] });
-  const local = userStateForSave(localNextState, userId);
-  const merged = { projects: [], tasks: [] };
-  for (const [collectionName, keyFor] of Object.entries(keyedCollections)) {
-    merged[collectionName] = mergeRowsByKey(remote[collectionName], local[collectionName], keyFor).filter(
-      (row) => (row.userId ?? 'ishida') === userId
-    );
-  }
-  return merged;
 }
 
 export function combineSharedStateSnapshots(rootState, userStatesById = {}) {
@@ -134,6 +127,7 @@ export function createFirestoreStateAdapter(
   today,
   deps = { getFirebaseApp, importFirebaseFirestoreModule }
 ) {
+  let saveQueue = Promise.resolve();
   return {
     mode: 'firestore',
     async subscribe(callback) {
@@ -189,40 +183,49 @@ export function createFirestoreStateAdapter(
         }
       });
     },
-    async save(nextState, options = {}) {
-      const [app, firestore] = await Promise.all([
-        deps.getFirebaseApp(firebaseConfig),
-        deps.importFirebaseFirestoreModule()
-      ]);
-      const db = firestore.getFirestore(app);
-      const userId = workloadUserIds.includes(options.userId) ? options.userId : 'ishida';
-      const rootRef = workloadRootRef(firestore, db);
-      const userRef = workloadUserRef(firestore, db, userId);
-      if (typeof firestore.runTransaction === 'function') {
-        await firestore.runTransaction(db, async (transaction) => {
-          const rootSnapshot = await transaction.get(rootRef);
-          const userSnapshot = await transaction.get(userRef);
-          const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
-          const remoteUser = userSnapshot.exists() ? userSnapshot.data() : {};
-          transaction.set(rootRef, rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState)), { merge: true });
-          transaction.set(userRef, mergeUserStateForSave(remoteUser, nextState, userId), { merge: true });
-        });
-        return;
-      }
-      if (typeof firestore.getDoc === 'function') {
-        const [rootSnapshot, userSnapshot] = await Promise.all([firestore.getDoc(rootRef), firestore.getDoc(userRef)]);
-        const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
-        const remoteUser = userSnapshot.exists() ? userSnapshot.data() : {};
-        await Promise.all([
-          firestore.setDoc(rootRef, rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState)), { merge: true }),
-          firestore.setDoc(userRef, mergeUserStateForSave(remoteUser, nextState, userId), { merge: true })
+    save(nextState, options = {}) {
+      const saveRequest = saveQueue.then(async () => {
+        const [app, firestore] = await Promise.all([
+          deps.getFirebaseApp(firebaseConfig),
+          deps.importFirebaseFirestoreModule()
         ]);
-        return;
-      }
-      await Promise.all([
-        firestore.setDoc(rootRef, rootStateForSave(nextState), { merge: true }),
-        firestore.setDoc(userRef, userStateForSave(nextState, userId), { merge: true })
-      ]);
+        const db = firestore.getFirestore(app);
+        const userId = workloadUserIds.includes(options.userId) ? options.userId : 'ishida';
+        const rootRef = workloadRootRef(firestore, db);
+        const userRef = workloadUserRef(firestore, db, userId);
+        if (typeof firestore.runTransaction === 'function') {
+          await firestore.runTransaction(db, async (transaction) => {
+            const rootSnapshot = await transaction.get(rootRef);
+            const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
+            transaction.set(
+              rootRef,
+              rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState), userId, remoteRoot),
+              { merge: true }
+            );
+            transaction.set(userRef, userStateForSave(nextState, userId), { merge: true });
+          });
+          return;
+        }
+        if (typeof firestore.getDoc === 'function') {
+          const rootSnapshot = await firestore.getDoc(rootRef);
+          const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
+          await Promise.all([
+            firestore.setDoc(
+              rootRef,
+              rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState), userId, remoteRoot),
+              { merge: true }
+            ),
+            firestore.setDoc(userRef, userStateForSave(nextState, userId), { merge: true })
+          ]);
+          return;
+        }
+        await Promise.all([
+          firestore.setDoc(rootRef, rootStateForSave(nextState, userId, {}), { merge: true }),
+          firestore.setDoc(userRef, userStateForSave(nextState, userId), { merge: true })
+        ]);
+      });
+      saveQueue = saveRequest.catch(() => {});
+      return saveRequest;
     }
   };
 }

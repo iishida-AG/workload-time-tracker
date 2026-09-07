@@ -115,3 +115,21 @@ test('renderReviewPage exposes structured reflection and analysis controls', () 
   assert.match(html, /予定 1h \/ 実績 2h/);
   assert.match(html, /\+1h/);
 });
+
+test('renderReviewPage expands plan comparison when there is no actual-time pie', () => {
+  const view = {
+    ...fixture,
+    week: {
+      ...fixture.week,
+      metrics: {
+        ...fixture.week.metrics,
+        totalActualHours: 0,
+        projectRows: []
+      }
+    }
+  };
+  const html = renderReviewPage(view, { icon: (name) => `<i>${name}</i>` });
+
+  assert.match(html, /class="review-time-grid no-pie"/);
+  assert.match(html, /予定 1h \/ 実績 2h/);
+});

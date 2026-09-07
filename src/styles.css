@@ -2299,6 +2299,10 @@ main {
   align-items: start;
 }
 
+.review-time-grid.no-pie {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .review-time-pie-block {
   display: grid;
   grid-template-columns: 180px minmax(0, 1fr);
