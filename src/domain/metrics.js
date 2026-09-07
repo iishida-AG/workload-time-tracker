@@ -871,9 +871,18 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
 }
 
 export function getImprovementPromiseForWeek(state, weekStart, userId) {
+  const todo = (state.weeklyTodos ?? []).find(
+    (row) => row.weekStart === weekStart && matchesUser(row, userId)
+  );
+  const currentLines = String(todo?.todoText ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-・]\s*/, '').trim())
+    .filter(Boolean);
+  if (currentLines.length > 0) return currentLines.join('\n');
+
   const previousWeek = addDays(weekStart, -7);
   const review = (state.weeklyReviews ?? []).find(
-    (row) => row.weekStart === previousWeek && (userId == null || matchesUser(row, userId))
+    (row) => row.weekStart === previousWeek && matchesUser(row, userId)
   );
   return review?.nextPromise?.trim() || '今週の改善約束は未設定です';
 }

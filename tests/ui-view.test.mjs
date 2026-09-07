@@ -126,6 +126,27 @@ test('createDashboardViewModel exposes current weekly goals and todos for the da
   assert.equal(view.todayCountRows[0].todayCount, 2);
   assert.deepEqual(view.weeklyTodoLines.map((line) => line.text), ['SES即レス', 'BP打ち合わせ準備']);
   assert.equal(view.weeklyTodoLines[0].checked, true);
+  assert.equal(view.improvementPromise, 'SES即レス\nBP打ち合わせ準備');
+});
+
+test('createDashboardViewModel falls back to the previous review when current actions are empty', () => {
+  const state = {
+    ...baseState(),
+    weeklyReviews: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-07-27',
+        nextPromise: '朝一で提案候補を3件出す'
+      }
+    ],
+    weeklyTodos: [
+      { userId: 'ishida', weekStart: '2026-08-03', todoText: '', checkedItems: {} },
+      { userId: 'tanoue', weekStart: '2026-08-03', todoText: '- 田上の行動', checkedItems: {} }
+    ]
+  };
+
+  const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
+
   assert.equal(view.improvementPromise, '朝一で提案候補を3件出す');
 });
 

@@ -277,8 +277,44 @@ test('computePlanActualTimeBreakdown compares planned and actual time by project
   ]);
 });
 
-test('getImprovementPromiseForWeek returns the previous week next promise', () => {
-  assert.equal(getImprovementPromiseForWeek(baseState, '2026-08-03'), '午前中に提案を固める');
+test('getImprovementPromiseForWeek prefers same-week next actions', () => {
+  const state = {
+    ...baseState,
+    weeklyTodos: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-08-03',
+        todoText: '- 当日追客\n・ 朝に候補抽出',
+        checkedItems: {}
+      },
+      {
+        userId: 'tanoue',
+        weekStart: '2026-08-03',
+        todoText: '- 田上の行動',
+        checkedItems: {}
+      }
+    ]
+  };
+
+  assert.equal(
+    getImprovementPromiseForWeek(state, '2026-08-03', 'ishida'),
+    '当日追客\n朝に候補抽出'
+  );
+});
+
+test('getImprovementPromiseForWeek falls back to the previous user review', () => {
+  const state = {
+    ...baseState,
+    weeklyTodos: [
+      { userId: 'ishida', weekStart: '2026-08-03', todoText: '  ', checkedItems: {} },
+      { userId: 'tanoue', weekStart: '2026-08-03', todoText: '- 田上の行動', checkedItems: {} }
+    ]
+  };
+
+  assert.equal(
+    getImprovementPromiseForWeek(state, '2026-08-03', 'ishida'),
+    '午前中に提案を固める'
+  );
 });
 
 test('computeGoalProgress aggregates the inclusive range for one user', () => {
