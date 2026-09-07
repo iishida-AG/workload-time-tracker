@@ -1,6 +1,9 @@
 export const HOURS = Array.from({ length: 11 }, (_, index) => index + 9);
 export const WEEK_CAPACITY_HOURS = 40;
 
+const FISCAL_ANCHOR_YEAR = 2026;
+const FISCAL_ANCHOR_TERM = 20;
+
 export function getTimelineHours(startHour = 9, endHour = 20) {
   const numericStartHour = Number(startHour ?? 9);
   const start = Math.max(0, Math.min(23, numericStartHour === 0 ? 0 : numericStartHour || 9));
@@ -44,4 +47,74 @@ export function getMonthDates(monthKey) {
   return Array.from({ length: lastDay }, (_, index) =>
     toDateKey(new Date(year, month - 1, index + 1))
   );
+}
+
+function firstMondayOfMonth(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const first = new Date(year, month - 1, 1);
+  const offset = (8 - first.getDay()) % 7;
+  first.setDate(first.getDate() + offset);
+  return toDateKey(first);
+}
+
+export function getDateRange(startDate, endDate) {
+  const dates = [];
+  for (let cursor = startDate; cursor <= endDate; cursor = addDays(cursor, 1)) {
+    dates.push(cursor);
+  }
+  return dates;
+}
+
+export function getFiscalQuarter(dateKey) {
+  const date = parseDateKey(dateKey);
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
+  const fiscalStartYear = month >= 6 ? year : year - 1;
+  const quarter = Math.floor(((month - 6 + 12) % 12) / 3) + 1;
+  const starts = [
+    `${fiscalStartYear}-06-01`,
+    `${fiscalStartYear}-09-01`,
+    `${fiscalStartYear}-12-01`,
+    `${fiscalStartYear + 1}-03-01`,
+    `${fiscalStartYear + 1}-06-01`
+  ];
+  const term = FISCAL_ANCHOR_TERM + fiscalStartYear - FISCAL_ANCHOR_YEAR;
+  return {
+    term,
+    quarter,
+    label: `${term}期${quarter}Q`,
+    start: starts[quarter - 1],
+    end: addDays(starts[quarter], -1)
+  };
+}
+
+export function getFiscalTermQuarters(dateKey) {
+  const current = getFiscalQuarter(dateKey);
+  const fiscalStartYear = current.term - FISCAL_ANCHOR_TERM + FISCAL_ANCHOR_YEAR;
+  return [0, 3, 6, 9].map((monthOffset) => {
+    const start = parseDateKey(`${fiscalStartYear}-06-01`);
+    start.setMonth(start.getMonth() + monthOffset);
+    return getFiscalQuarter(toDateKey(start));
+  });
+}
+
+export function getOperationalMonth(dateKey) {
+  return getWeekStart(dateKey).slice(0, 7);
+}
+
+export function getOperationalMonthWeeks(monthKey) {
+  const first = firstMondayOfMonth(monthKey);
+  const [year, month] = monthKey.split('-').map(Number);
+  const nextMonthKey = toDateKey(new Date(year, month, 1)).slice(0, 7);
+  const boundary = firstMondayOfMonth(nextMonthKey);
+  const rows = [];
+  for (let start = first; start < boundary; start = addDays(start, 7)) {
+    rows.push({
+      index: rows.length + 1,
+      label: `${rows.length + 1}週目`,
+      start,
+      end: addDays(start, 6)
+    });
+  }
+  return rows;
 }
