@@ -2,6 +2,7 @@ import './calendar.test.mjs';
 import './domain.test.mjs';
 import './state.test.mjs';
 import './review-view-model.test.mjs';
+import './review-view.test.mjs';
 import './ui-view.test.mjs';
 import './mobile-css.test.mjs';
 import './two-user-domain.test.mjs';

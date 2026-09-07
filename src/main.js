@@ -22,14 +22,18 @@ import {
 } from './domain/metrics.js?v=20260824-review-gap-v1';
 import { getUserLabel, USERS } from './domain/users.js';
 import { createDashboardViewModel } from './ui/view-model.js?v=20260817-home-link-v1';
+import { createReviewViewModel } from './ui/review-view-model.js';
+import { renderReviewPage } from './ui/review-view.js';
 import { createStateAdapter } from './state/firebase-sync.js';
 import { firebaseConfig } from './firebase-config.js';
 import { createAuthController } from './state/auth.js?v=20260824-google-login-v1';
 import {
   addProject,
   addTask,
+  deleteQuarterGoal,
   deleteProject,
   deleteTask,
+  deleteWeeklyGoal,
   getTimelineSetting,
   hideProject,
   hideTask,
@@ -42,6 +46,7 @@ import {
   upsertMonthlyProjectGoal,
   upsertMonthlyTaskTarget,
   upsertProjectGoalVisibility,
+  upsertQuarterGoal,
   upsertReview,
   upsertTimelineSetting,
   upsertWeeklyGoal,
@@ -62,7 +67,9 @@ let root;
 let currentDate;
 let activeTab = 'dashboard';
 let selectedTaskId = '';
-let reviewMode = 'week';
+let selectedReviewQuarterStart = '';
+let selectedReviewMonthKey = '';
+let selectedReviewWeekStart = '';
 let copyFormat = 'timeline';
 let activeUserId = 'ishida';
 let focusedCell = null;
@@ -370,6 +377,20 @@ function projectById(projectId) {
 
 function weekStart() {
   return getWeekStart(currentDate);
+}
+
+function currentReviewView() {
+  const view = createReviewViewModel(state, {
+    userId: activeUserId,
+    currentDate,
+    quarterStart: selectedReviewQuarterStart,
+    monthKey: selectedReviewMonthKey,
+    weekStart: selectedReviewWeekStart
+  });
+  selectedReviewQuarterStart = view.selectedQuarter.start;
+  selectedReviewMonthKey = view.monthKey;
+  selectedReviewWeekStart = view.selectedWeek.start;
+  return view;
 }
 
 function reviewWeekStart() {
@@ -2046,102 +2067,7 @@ function renderWeeklyReviewForm() {
 }
 
 function renderReviewDashboard() {
-  const targetWeek = reviewWeekStart();
-  const periodStart = reviewMode === 'week' ? targetWeek : `${currentDate.slice(0, 7)}-01`;
-  const metrics = computeReviewMetrics(state, periodStart, { periodMode: reviewMode, userId: activeUserId });
-  const review = currentReview();
-  return `
-    <div class="review-layout">
-      ${renderWeeklyReviewForm()}
-      ${renderReviewWeeklyTargets()}
-      ${renderMonthlyProjectGoals()}
-      <section class="panel review-summary-panel">
-        <div class="panel-heading">
-          <div>
-            <span class="section-kicker">共有ダッシュボード</span>
-            <h2>${reviewMode === 'week' ? `${weekStart()} 週` : `${currentDate.slice(0, 7)} 月`}</h2>
-          </div>
-          <div class="segmented">
-            <button class="${reviewMode === 'week' ? 'active' : ''}" data-action="review-mode" data-mode="week">週次</button>
-            <button class="${reviewMode === 'month' ? 'active' : ''}" data-action="review-mode" data-mode="month">月次</button>
-          </div>
-        </div>
-        <div class="summary-grid">
-          <div class="summary-card">${icon('clock')}<span>総実働</span><strong>${metrics.totalActualHours}h</strong></div>
-          <div class="summary-card">${icon('target')}<span>キャパ達成率</span><strong>${metrics.capacityRate}%</strong></div>
-          <div class="summary-card">${icon('chart')}<span>目標行数</span><strong>${metrics.goalRows.length}</strong></div>
-        </div>
-        ${renderGoalRows(metrics, targetWeek)}
-      </section>
-      <section class="panel">
-        <div class="panel-heading compact">
-          <div>
-            <span class="section-kicker">時間配分</span>
-            <h2>コア業務 vs 雑務</h2>
-          </div>
-        </div>
-        ${renderPie(metrics)}
-        ${renderProjectTimePie(periodStart, reviewMode)}
-        <div class="panel-heading compact time-breakdown-heading">
-          <div>
-            <span class="section-kicker">実績時間の内訳</span>
-            <h2>大分類・小分類別</h2>
-          </div>
-        </div>
-        ${renderReviewTimeBreakdown(periodStart, reviewMode)}
-      </section>
-      <section class="panel">
-        <div class="panel-heading compact">
-          <div>
-            <span class="section-kicker">予実ギャップTop3</span>
-            <h2>予定との差分</h2>
-          </div>
-        </div>
-        <div class="gap-list">
-          ${
-            metrics.topGaps.length === 0
-              ? '<p class="empty-state">大きな差分はありません</p>'
-              : metrics.topGaps
-                  .map(
-                    (gap) => `
-                      <div class="gap-item">
-                        <strong>${String(gap.hour).padStart(2, '0')}:00</strong>
-                        <span>${escapeHtml(gap.plannedTaskName)} → ${escapeHtml(gap.actualTaskName)}</span>
-                      </div>
-                    `
-                  )
-                  .join('')
-          }
-        </div>
-      </section>
-      <section class="panel review-form-panel">
-        <div class="panel-heading compact">
-          <div>
-            <span class="section-kicker">振り返りフォーム</span>
-            <h2>${weekStart()} 週</h2>
-          </div>
-        </div>
-        <div class="review-form">
-          <label>
-            <span>目標振り返り</span>
-            <textarea data-review-field="goalReflection">${escapeHtml(review.goalReflection)}</textarea>
-          </label>
-          <label>
-            <span>残業原因</span>
-            <textarea data-review-field="overtimeCause">${escapeHtml(review.overtimeCause)}</textarea>
-          </label>
-          <label>
-            <span>来週の改善約束</span>
-            <textarea data-review-field="nextPromise">${escapeHtml(review.nextPromise)}</textarea>
-          </label>
-          <label>
-            <span>話し合いたいこと</span>
-            <textarea data-review-field="discussionItems" placeholder="- 話し合いたい議題&#10;- 確認したいこと">${escapeHtml(review.discussionItems ?? '')}</textarea>
-          </label>
-        </div>
-      </section>
-    </div>
-  `;
+  return renderReviewPage(currentReviewView(), { icon });
 }
 
 function render() {
@@ -2161,7 +2087,6 @@ function render() {
   enableShortcutDragging();
   applyAppBranding();
   applyPlanPromptControls();
-  applyReviewLabels();
   applyMonthlyProgress();
 }
 
@@ -2438,8 +2363,12 @@ function handleClick(event) {
   if (action === 'show-project') {
     commit(updateProject(state, button.dataset.projectId, { status: 'active' }));
   }
-  if (action === 'review-mode') {
-    reviewMode = button.dataset.mode;
+  if (action === 'select-quarter') {
+    selectedReviewQuarterStart = button.dataset.quarterStart;
+    render();
+  }
+  if (action === 'select-review-week') {
+    selectedReviewWeekStart = button.dataset.weekStart;
     render();
   }
 }
@@ -2489,6 +2418,14 @@ function handleChange(event) {
   if (target.dataset.field === 'current-date') {
     currentDate = target.value;
     focusedCell = null;
+    selectedReviewQuarterStart = '';
+    selectedReviewMonthKey = '';
+    selectedReviewWeekStart = '';
+    render();
+  }
+  if (target.dataset.field === 'review-month') {
+    selectedReviewMonthKey = target.value;
+    selectedReviewWeekStart = '';
     render();
   }
   if (target.dataset.field === 'weekly-todo-user') {
@@ -2510,7 +2447,27 @@ function handleChange(event) {
     commit(upsertProjectGoalVisibility(state, activeUserId, target.dataset.projectId, target.checked));
   }
   if (target.dataset.field === 'weekly-task-target') {
-    commit(upsertWeeklyGoal(state, target.dataset.weekStart ?? weekStart(), target.dataset.taskId, target.value, activeUserId));
+    const targetWeek = target.dataset.weekStart
+      ?? (activeTab === 'review' ? currentReviewView().selectedWeek.start : weekStart());
+    commit(upsertWeeklyGoal(state, targetWeek, target.dataset.taskId, target.value, activeUserId));
+  }
+  if (target.dataset.field === 'quarter-target') {
+    const quarterStart = currentReviewView().selectedQuarter.start;
+    commit(upsertQuarterGoal(state, activeUserId, quarterStart, target.dataset.taskId, target.value));
+  }
+  if (target.dataset.field === 'quarter-goal-task') {
+    const row = target.closest('[data-goal-row]');
+    const targetCount = row?.querySelector('[data-field="quarter-target"]')?.value ?? 0;
+    const quarterStart = currentReviewView().selectedQuarter.start;
+    const withoutOldGoal = deleteQuarterGoal(state, activeUserId, quarterStart, target.dataset.taskId);
+    commit(upsertQuarterGoal(withoutOldGoal, activeUserId, quarterStart, target.value, targetCount));
+  }
+  if (target.dataset.field === 'weekly-goal-task') {
+    const row = target.closest('[data-goal-row]');
+    const targetCount = row?.querySelector('[data-field="weekly-task-target"]')?.value ?? 0;
+    const targetWeek = currentReviewView().selectedWeek.start;
+    const withoutOldGoal = deleteWeeklyGoal(state, activeUserId, targetWeek, target.dataset.taskId);
+    commit(upsertWeeklyGoal(withoutOldGoal, targetWeek, target.value, targetCount, activeUserId));
   }
   if (target.dataset.field === 'daily-task-count') {
     commit(setDailyCount(state, activeUserId, currentDate, target.dataset.taskId, target.value));
