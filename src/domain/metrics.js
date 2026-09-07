@@ -1,4 +1,4 @@
-import { addDays, getMonthDates, getWeekDates, WEEK_CAPACITY_HOURS } from './calendar.js';
+import { addDays, getDateRange, getMonthDates, getWeekDates, WEEK_CAPACITY_HOURS } from './calendar.js';
 
 const zeroNatureHours = () => ({ core: 0, admin: 0, investment: 0 });
 
@@ -102,7 +102,7 @@ function actualMinutesForTask(entry, taskId) {
 }
 
 function isReviewTask(task) {
-  return task?.nature !== 'break';
+  return Boolean(task) && task.nature !== 'break';
 }
 
 function reviewMinutesForActual(entry, tasks) {
@@ -534,7 +534,7 @@ export function computeReviewTimeBreakdown(state, periodStart, options = {}) {
   for (const entry of (state.dayActuals ?? []).filter((row) => withinDates(row, dates) && matchesUser(row, userId))) {
     for (const item of getActualItems(entry)) {
       const task = tasks.get(item.taskId);
-      if (!isReviewTask(task)) continue;
+      if (!task || !isReviewTask(task)) continue;
       const project = projects.get(task.projectId);
       if (!project) continue;
       const projectRow = projectTotals.get(project.id) ?? {
@@ -580,7 +580,7 @@ function addTimelineMinutesToBreakdown(rows, entries, dates, userId, tasks, proj
   for (const entry of (entries ?? []).filter((row) => withinDates(row, dates) && matchesUser(row, userId))) {
     for (const item of getActualItems(entry)) {
       const task = tasks.get(item.taskId);
-      if (!isReviewTask(task)) continue;
+      if (!task || !isReviewTask(task)) continue;
       const project = projects.get(task.projectId);
       if (!project) continue;
       const projectRow = rows.get(project.id) ?? {
@@ -615,10 +615,50 @@ function withPlanActualHours(row) {
   };
 }
 
-export function computePlanActualTimeBreakdown(state, periodStart, options = {}) {
+function dateSetForPeriod(periodStart, options) {
+  if (options.startDate && options.endDate) {
+    return new Set(getDateRange(options.startDate, options.endDate));
+  }
   const periodMode = options.periodMode ?? 'week';
+  return new Set(
+    periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart)
+  );
+}
+
+export function computeGoalProgress(state, { userId, startDate, endDate, goals = [] }) {
+  const dates = new Set(getDateRange(startDate, endDate));
+  const tasks = taskById(state.tasks ?? []);
+  const rows = goals
+    .filter((goal) => matchesUser(goal, userId))
+    .map((goal) => {
+      const targetCount = Math.max(0, Number(goal.targetCount) || 0);
+      const actualCount = (state.dailyCounts ?? [])
+        .filter(
+          (row) => matchesUser(row, userId) && row.taskId === goal.taskId && dates.has(row.date)
+        )
+        .reduce((sum, row) => sum + row.count, 0);
+      return {
+        ...goal,
+        taskName: tasks.get(goal.taskId)?.name ?? '未設定タスク',
+        targetCount,
+        actualCount,
+        progressRate: targetCount === 0 ? 0 : round((actualCount / targetCount) * 100, 1)
+      };
+    });
+  const totalActualCount = rows.reduce((sum, row) => sum + row.actualCount, 0);
+  const totalTargetCount = rows.reduce((sum, row) => sum + row.targetCount, 0);
+  return {
+    rows,
+    totalActualCount,
+    totalTargetCount,
+    totalProgressRate:
+      totalTargetCount === 0 ? 0 : round((totalActualCount / totalTargetCount) * 100, 1)
+  };
+}
+
+export function computePlanActualTimeBreakdown(state, periodStart, options = {}) {
   const userId = options.userId;
-  const dates = new Set(periodMode === 'month' ? getMonthDates(periodStart.slice(0, 7)) : getWeekDates(periodStart));
+  const dates = dateSetForPeriod(periodStart, options);
   const tasks = taskById(state.tasks ?? []);
   const projects = projectById(state.projects ?? []);
   const projectRows = new Map();
@@ -636,6 +676,105 @@ export function computePlanActualTimeBreakdown(state, periodStart, options = {})
       })
     }))
     .sort((a, b) => b.plannedMinutes + b.actualMinutes - (a.plannedMinutes + a.actualMinutes));
+}
+
+function computeProjectTimeRowsForDates(state, dates, userId) {
+  const tasks = taskById(state.tasks ?? []);
+  const projects = projectById(state.projects ?? []);
+  const totals = new Map();
+
+  for (const entry of state.dayActuals ?? []) {
+    if (!matchesUser(entry, userId) || !dates.has(entry.date)) continue;
+    for (const item of getActualItems(entry)) {
+      const task = tasks.get(item.taskId);
+      if (!task || !isReviewTask(task)) continue;
+      const project = projects.get(task.projectId);
+      if (!project) continue;
+      totals.set(project.id, {
+        projectId: project.id,
+        projectName: project.name,
+        minutes: (totals.get(project.id)?.minutes ?? 0) + item.minutes
+      });
+    }
+  }
+
+  const totalMinutes = [...totals.values()].reduce((sum, row) => sum + row.minutes, 0);
+  return [...totals.values()]
+    .map((row) => ({
+      ...row,
+      hours: round(row.minutes / 60, 2),
+      ratio: totalMinutes === 0 ? 0 : round((row.minutes / totalMinutes) * 100, 1)
+    }))
+    .sort((a, b) => b.minutes - a.minutes);
+}
+
+function computeReviewSummaryForDates(state, dates, userId) {
+  const tasks = taskById(state.tasks ?? []);
+  const actuals = (state.dayActuals ?? []).filter(
+    (entry) => withinDates(entry, dates) && matchesUser(entry, userId)
+  );
+  const plans = (state.dayPlans ?? []).filter(
+    (entry) => withinDates(entry, dates) && matchesUser(entry, userId)
+  );
+  const actualMinutes = actuals.reduce(
+    (sum, entry) => sum + reviewMinutesForActual(entry, tasks),
+    0
+  );
+  const totalActualHours = round(actualMinutes / 60, 2);
+  const natureHours = zeroNatureHours();
+
+  for (const entry of actuals) {
+    for (const item of getActualItems(entry)) {
+      const task = tasks.get(item.taskId);
+      if (task && natureHours[task.nature] !== undefined) {
+        natureHours[task.nature] += item.minutes / 60;
+      }
+    }
+  }
+
+  const natureRatios = Object.fromEntries(
+    Object.entries(natureHours).map(([nature, hours]) => [
+      nature,
+      totalActualHours === 0 ? 0 : round((hours / totalActualHours) * 100, 1)
+    ])
+  );
+  const planMap = new Map(plans.map((entry) => [entryKey(entry), entry]));
+  const actualMap = new Map(
+    actuals
+      .filter((entry) => firstReviewTaskId(entry, tasks))
+      .map((entry) => [entryKey(entry), entry])
+  );
+  const topGaps = [...planMap.entries()]
+    .filter(
+      ([key, plan]) =>
+        actualMap.has(key) && firstReviewTaskId(actualMap.get(key), tasks) !== plan.taskId
+    )
+    .slice(0, 3)
+    .map(([, plan]) => {
+      const actual = actualMap.get(entryKey(plan));
+      return {
+        hour: plan.hour,
+        plannedTaskName: tasks.get(plan.taskId)?.name ?? '未設定',
+        actualTaskName: tasks.get(firstReviewTaskId(actual, tasks))?.name ?? '未設定'
+      };
+    });
+
+  return { totalActualHours, natureHours, natureRatios, topGaps };
+}
+
+export function computeReviewPeriodMetrics(state, { userId, startDate, endDate }) {
+  const dates = new Set(getDateRange(startDate, endDate));
+  return {
+    startDate,
+    endDate,
+    ...computeReviewSummaryForDates(state, dates, userId),
+    projectRows: computeProjectTimeRowsForDates(state, dates, userId),
+    planActualRows: computePlanActualTimeBreakdown(state, startDate, {
+      userId,
+      startDate,
+      endDate
+    })
+  };
 }
 
 export function computeReviewMetrics(state, periodStart, options = {}) {

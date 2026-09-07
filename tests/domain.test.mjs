@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import {
+  computeGoalProgress,
   computePlanActualTimeBreakdown,
+  computeReviewPeriodMetrics,
   computeReviewTimeBreakdown,
   computeReviewMetrics,
   copyPlanToActuals,
@@ -277,4 +279,82 @@ test('computePlanActualTimeBreakdown compares planned and actual time by project
 
 test('getImprovementPromiseForWeek returns the previous week next promise', () => {
   assert.equal(getImprovementPromiseForWeek(baseState, '2026-08-03'), '午前中に提案を固める');
+});
+
+test('computeGoalProgress aggregates the inclusive range for one user', () => {
+  const state = {
+    ...baseState,
+    dailyCounts: [
+      { userId: 'ishida', date: '2026-09-01', taskId: 'proposal', count: 3 },
+      { userId: 'ishida', date: '2026-11-30', taskId: 'proposal', count: 7 },
+      { userId: 'ishida', date: '2026-12-01', taskId: 'proposal', count: 99 },
+      { userId: 'tanoue', date: '2026-09-10', taskId: 'proposal', count: 40 }
+    ]
+  };
+  const result = computeGoalProgress(state, {
+    userId: 'ishida',
+    startDate: '2026-09-01',
+    endDate: '2026-11-30',
+    goals: [
+      {
+        userId: 'ishida',
+        quarterStart: '2026-09-01',
+        taskId: 'proposal',
+        targetCount: 20
+      },
+      {
+        userId: 'tanoue',
+        quarterStart: '2026-09-01',
+        taskId: 'proposal',
+        targetCount: 200
+      }
+    ]
+  });
+
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].actualCount, 10);
+  assert.equal(result.rows[0].progressRate, 50);
+  assert.equal(result.totalProgressRate, 50);
+});
+
+test('computeReviewPeriodMetrics includes Sunday across a month boundary', () => {
+  const state = {
+    ...baseState,
+    dayPlans: [
+      { userId: 'ishida', date: '2026-09-28', hour: 10, taskId: 'proposal' }
+    ],
+    dayActuals: [
+      { userId: 'ishida', date: '2026-10-04', hour: 10, taskId: 'proposal' },
+      { userId: 'tanoue', date: '2026-10-04', hour: 11, taskId: 'proposal' }
+    ]
+  };
+  const result = computeReviewPeriodMetrics(state, {
+    userId: 'ishida',
+    startDate: '2026-09-28',
+    endDate: '2026-10-04'
+  });
+
+  assert.equal(result.totalActualHours, 1);
+  assert.equal(result.projectRows[0].hours, 1);
+  assert.equal(result.planActualRows[0].plannedHours, 1);
+  assert.equal(result.planActualRows[0].actualHours, 1);
+  assert.equal(result.planActualRows[0].diffHours, 0);
+});
+
+test('computeReviewPeriodMetrics ignores actuals for deleted tasks', () => {
+  const state = {
+    ...baseState,
+    dayActuals: [
+      { userId: 'ishida', date: '2026-09-28', hour: 10, taskId: 'deleted-task' }
+    ]
+  };
+
+  const result = computeReviewPeriodMetrics(state, {
+    userId: 'ishida',
+    startDate: '2026-09-28',
+    endDate: '2026-10-04'
+  });
+
+  assert.deepEqual(result.projectRows, []);
+  assert.equal(result.totalActualHours, 0);
 });
