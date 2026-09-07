@@ -2,16 +2,23 @@ import assert from 'node:assert/strict';
 import {
   addTask,
   createAppState,
+  deleteQuarterGoal,
+  deleteQuarterGoalNote,
   deleteProject,
   deleteTask,
+  deleteWeeklyGoal,
+  deleteWeeklyGoalNote,
   getTimelineSetting,
   hideProject,
   hideTask,
   normalizeState,
+  replaceWeeklyTodoLines,
   moveProjectOrder,
   moveTaskOrder,
   setDailyCount,
   updateTask,
+  upsertQuarterGoal,
+  upsertQuarterGoalNote,
   upsertMonthlyTaskTarget,
   upsertMonthlyProjectGoal,
   upsertProjectGoalVisibility,
@@ -21,7 +28,8 @@ import {
   upsertWeeklyTodo,
   upsertWeeklyProjectGoal,
   upsertWeeklyGoal,
-  upsertWeeklyGoalAction
+  upsertWeeklyGoalAction,
+  upsertWeeklyGoalNote
 } from '../src/state/store.js';
 import { computeProjectCountSummaries, incrementDailyCount } from '../src/domain/metrics.js';
 
@@ -341,4 +349,116 @@ test('moveProjectOrder leaves boundary projects unchanged', () => {
   const unchanged = moveProjectOrder(state, 'ses-sales', 'up');
 
   assert.deepEqual(unchanged.projects, state.projects);
+});
+
+test('review state normalizes additive goal collections and structured review fields', () => {
+  const normalized = normalizeState({
+    projects: [],
+    tasks: [],
+    weeklyReviews: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-09-07',
+        goalReflection: '成果',
+        overtimeCause: '準備不足'
+      }
+    ]
+  });
+
+  assert.deepEqual(normalized.quarterGoalNotes, []);
+  assert.deepEqual(normalized.quarterGoals, []);
+  assert.deepEqual(normalized.weeklyGoalNotes, []);
+  assert.equal(normalized.weeklyReviews[0].goodPoints, '成果');
+  assert.deepEqual(normalized.weeklyReviews[0].reflections, ['準備不足', '', '']);
+  assert.deepEqual(normalized.weeklyReviews[0].improvements, ['', '', '']);
+});
+
+test('quarter and weekly goal rows update only their exact user and period', () => {
+  let next = createAppState('2026-09-07');
+  next = upsertQuarterGoalNote(next, 'ishida', '2026-09-01', 'q-note-1', '重点顧客');
+  next = upsertQuarterGoalNote(next, 'ishida', '2026-09-01', 'q-note-2', '採用強化');
+  next = upsertWeeklyGoalNote(next, 'tanoue', '2026-09-07', 'w-note-1', '当日追客');
+  next = upsertQuarterGoal(next, 'ishida', '2026-09-01', 'ses-sales-1', 120);
+
+  assert.deepEqual(next.quarterGoalNotes[0].items.map((item) => item.text), ['重点顧客', '採用強化']);
+  assert.equal(next.weeklyGoalNotes[0].userId, 'tanoue');
+  assert.equal(next.quarterGoals[0].targetCount, 120);
+
+  next = deleteQuarterGoalNote(next, 'ishida', '2026-09-01', 'q-note-1');
+  next = deleteWeeklyGoalNote(next, 'tanoue', '2026-09-07', 'w-note-1');
+  next = deleteQuarterGoal(next, 'ishida', '2026-09-01', 'ses-sales-1');
+  assert.deepEqual(next.quarterGoalNotes[0].items.map((item) => item.text), ['採用強化']);
+  assert.deepEqual(next.weeklyGoalNotes[0].items, []);
+  assert.deepEqual(next.quarterGoals, []);
+});
+
+test('weekly goal deletion keeps other users and daily actual counts', () => {
+  const state = {
+    ...createAppState('2026-09-07'),
+    weeklyGoals: [
+      { userId: 'ishida', weekStart: '2026-09-07', taskId: 'ses-sales-1', targetCount: 10 },
+      { userId: 'tanoue', weekStart: '2026-09-07', taskId: 'ses-sales-1', targetCount: 20 }
+    ],
+    dailyCounts: [{ userId: 'ishida', date: '2026-09-07', taskId: 'ses-sales-1', count: 3 }]
+  };
+  const next = deleteWeeklyGoal(state, 'ishida', '2026-09-07', 'ses-sales-1');
+
+  assert.deepEqual(next.weeklyGoals, [
+    { userId: 'tanoue', weekStart: '2026-09-07', taskId: 'ses-sales-1', targetCount: 20 }
+  ]);
+  assert.equal(next.dailyCounts[0].count, 3);
+});
+
+test('structured review patches preserve untouched old and new fields', () => {
+  const initial = upsertReview(createAppState('2026-09-07'), '2026-09-07', {
+    userId: 'ishida',
+    goodPoints: '即レスできた',
+    reflections: ['準備不足', '', ''],
+    improvements: ['朝に準備', '', ''],
+    discussionItems: '提案配分',
+    nextPromise: '旧欄'
+  });
+  const next = upsertReview(initial, '2026-09-07', {
+    userId: 'ishida',
+    goodPoints: '面談化した'
+  });
+
+  assert.deepEqual(next.weeklyReviews[0].reflections, ['準備不足', '', '']);
+  assert.deepEqual(next.weeklyReviews[0].improvements, ['朝に準備', '', '']);
+  assert.equal(next.weeklyReviews[0].discussionItems, '提案配分');
+  assert.equal(next.weeklyReviews[0].nextPromise, '旧欄');
+});
+
+test('next action replacement preserves only unambiguous checkbox matches', () => {
+  const initial = {
+    ...createAppState('2026-09-07'),
+    weeklyTodos: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-09-07',
+        todoText: '- 追客\n- 資料作成',
+        checkedItems: { 0: true, 1: false }
+      }
+    ]
+  };
+  const next = replaceWeeklyTodoLines(initial, '2026-09-07', 'ishida', [
+    { id: 'b', text: '資料作成' },
+    { id: 'a', text: '追客' },
+    { id: 'c', text: '日程調整' }
+  ]);
+
+  assert.equal(next.weeklyTodos[0].todoText, '- 資料作成\n- 追客\n- 日程調整');
+  assert.deepEqual(next.weeklyTodos[0].checkedItems, { 0: false, 1: true, 2: false });
+});
+
+test('goal target normalization clamps malformed and negative values', () => {
+  const normalized = normalizeState({
+    projects: [],
+    tasks: [],
+    weeklyGoals: [{ userId: 'ishida', weekStart: '2026-09-07', taskId: 't1', targetCount: -3 }],
+    quarterGoals: [{ userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 'bad' }]
+  });
+
+  assert.equal(normalized.weeklyGoals[0].targetCount, 0);
+  assert.equal(normalized.quarterGoals[0].targetCount, 0);
 });

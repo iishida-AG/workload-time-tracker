@@ -47,6 +47,9 @@ export function createInitialState(today) {
     tasks: DEFAULT_TASKS,
     dayPlans: [],
     dayActuals: [],
+    quarterGoalNotes: [],
+    quarterGoals: [],
+    weeklyGoalNotes: [],
     weeklyGoals: firstCountableTask
       ? [{ weekStart, taskId: firstCountableTask.id, targetCount: 20 }]
       : [],

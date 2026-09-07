@@ -38,6 +38,27 @@ function normalizeShortcutVisibility(value) {
   return ['ishida', 'tanoue', 'both'].includes(value) ? value : 'both';
 }
 
+function normalizeTargetCount(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+function normalizeThreeRows(rows, fallback = '') {
+  const values = Array.isArray(rows) ? rows : [fallback];
+  return Array.from({ length: 3 }, (_, index) => String(values[index] ?? ''));
+}
+
+function normalizeGoalNoteRows(rows, defaultUserId, periodField) {
+  return (rows ?? []).map((row) => ({
+    ...row,
+    userId: row.userId ?? defaultUserId,
+    [periodField]: row[periodField],
+    items: (row.items ?? []).map((item, index) => ({
+      id: String(item.id ?? `legacy-${index + 1}`),
+      text: String(item.text ?? '')
+    }))
+  }));
+}
+
 export function createAppState(today = new Date().toISOString().slice(0, 10)) {
   return createInitialState(getWeekStart(today));
 }
@@ -65,9 +86,17 @@ export function normalizeState(state, defaultUserId = 'ishida') {
       userId: goal.userId ?? defaultUserId,
       ...goal
     })),
-    weeklyGoals: (state.weeklyGoals ?? []).map((goal) => ({
+    quarterGoalNotes: normalizeGoalNoteRows(state.quarterGoalNotes, defaultUserId, 'quarterStart'),
+    quarterGoals: (state.quarterGoals ?? []).map((goal) => ({
+      ...goal,
       userId: goal.userId ?? defaultUserId,
-      ...goal
+      targetCount: normalizeTargetCount(goal.targetCount)
+    })),
+    weeklyGoalNotes: normalizeGoalNoteRows(state.weeklyGoalNotes, defaultUserId, 'weekStart'),
+    weeklyGoals: (state.weeklyGoals ?? []).map((goal) => ({
+      ...goal,
+      userId: goal.userId ?? defaultUserId,
+      targetCount: normalizeTargetCount(goal.targetCount)
     })),
     weeklyGoalActions: (state.weeklyGoalActions ?? []).map((action) => ({
       userId: action.userId ?? defaultUserId,
@@ -109,7 +138,10 @@ export function normalizeState(state, defaultUserId = 'ishida') {
     weeklyReviews: (state.weeklyReviews ?? []).map((review) => ({
       discussionItems: '',
       userId: defaultUserId,
-      ...review
+      ...review,
+      goodPoints: String(review.goodPoints ?? review.goalReflection ?? ''),
+      reflections: normalizeThreeRows(review.reflections, review.overtimeCause ?? ''),
+      improvements: normalizeThreeRows(review.improvements)
     })),
     weeklyTodos: (state.weeklyTodos ?? []).map((todo) => ({
       checkedItems: {},
@@ -161,7 +193,7 @@ export function upsertWeeklyProjectGoal(state, userId, weekStart, projectId, goa
   };
 }
 
-export function upsertWeeklyTodo(state, weekStart, userId, todoText) {
+export function upsertWeeklyTodo(state, weekStart, userId, todoText, checkedItems) {
   const exists = (state.weeklyTodos ?? []).some(
     (row) => row.weekStart === weekStart && row.userId === userId
   );
@@ -172,7 +204,7 @@ export function upsertWeeklyTodo(state, weekStart, userId, todoText) {
     weekStart,
     userId,
     todoText,
-    checkedItems: existing?.checkedItems ?? {}
+    checkedItems: checkedItems ?? existing?.checkedItems ?? {}
   };
   return {
     ...state,
@@ -210,6 +242,88 @@ export function toggleWeeklyTodoItem(state, weekStart, userId, itemIndex, checke
       item.weekStart === weekStart && item.userId === userId ? update(item) : item
     )
   };
+}
+
+function upsertGoalNoteItem(state, collectionName, periodField, userId, periodStart, itemId, text) {
+  const rows = state[collectionName] ?? [];
+  const rowIndex = rows.findIndex(
+    (row) => (row.userId ?? 'ishida') === userId && row[periodField] === periodStart
+  );
+  const existing = rowIndex >= 0 ? rows[rowIndex] : null;
+  const items = existing?.items ?? [];
+  const itemExists = items.some((item) => item.id === itemId);
+  const nextRow = {
+    ...existing,
+    userId,
+    [periodField]: periodStart,
+    items: itemExists
+      ? items.map((item) => (item.id === itemId ? { ...item, text: String(text ?? '') } : item))
+      : [...items, { id: itemId, text: String(text ?? '') }]
+  };
+  return {
+    ...state,
+    [collectionName]: rowIndex >= 0
+      ? rows.map((row, index) => (index === rowIndex ? nextRow : row))
+      : [...rows, nextRow]
+  };
+}
+
+function deleteGoalNoteItem(state, collectionName, periodField, userId, periodStart, itemId) {
+  return {
+    ...state,
+    [collectionName]: (state[collectionName] ?? []).map((row) =>
+      (row.userId ?? 'ishida') === userId && row[periodField] === periodStart
+        ? { ...row, items: (row.items ?? []).filter((item) => item.id !== itemId) }
+        : row
+    )
+  };
+}
+
+export function upsertQuarterGoalNote(state, userId, quarterStart, itemId, text) {
+  return upsertGoalNoteItem(state, 'quarterGoalNotes', 'quarterStart', userId, quarterStart, itemId, text);
+}
+
+export function deleteQuarterGoalNote(state, userId, quarterStart, itemId) {
+  return deleteGoalNoteItem(state, 'quarterGoalNotes', 'quarterStart', userId, quarterStart, itemId);
+}
+
+export function upsertWeeklyGoalNote(state, userId, weekStart, itemId, text) {
+  return upsertGoalNoteItem(state, 'weeklyGoalNotes', 'weekStart', userId, weekStart, itemId, text);
+}
+
+export function deleteWeeklyGoalNote(state, userId, weekStart, itemId) {
+  return deleteGoalNoteItem(state, 'weeklyGoalNotes', 'weekStart', userId, weekStart, itemId);
+}
+
+export function replaceWeeklyTodoLines(state, weekStart, userId, lines) {
+  const existing = (state.weeklyTodos ?? []).find(
+    (row) => row.weekStart === weekStart && row.userId === userId
+  );
+  const oldLines = String(existing?.todoText ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-・]\s*/, '').trim())
+    .filter(Boolean);
+  const cleanLines = lines
+    .map((line) => String(line.text ?? '').trim())
+    .filter(Boolean);
+  const count = (items, value) => items.filter((item) => item === value).length;
+  const checkedItems = Object.fromEntries(
+    cleanLines.map((text, index) => {
+      const oldIndex = oldLines.indexOf(text);
+      const keep =
+        count(oldLines, text) === 1 &&
+        count(cleanLines, text) === 1 &&
+        Boolean(existing?.checkedItems?.[oldIndex]);
+      return [index, keep];
+    })
+  );
+  return upsertWeeklyTodo(
+    state,
+    weekStart,
+    userId,
+    cleanLines.map((text) => `- ${text}`).join('\n'),
+    checkedItems
+  );
 }
 
 export function upsertMonthlyProjectGoal(state, userId, month, projectId, goalText) {
@@ -409,7 +523,7 @@ export function deleteProject(state, projectId) {
 }
 
 export function upsertWeeklyGoal(state, weekStart, taskId, targetCount, userId = 'ishida') {
-  const normalizedTarget = Math.max(0, Number(targetCount) || 0);
+  const normalizedTarget = normalizeTargetCount(targetCount);
   const exists = (state.weeklyGoals ?? []).some(
     (goal) => (goal.userId ?? 'ishida') === userId && goal.weekStart === weekStart && goal.taskId === taskId
   );
@@ -421,6 +535,57 @@ export function upsertWeeklyGoal(state, weekStart, taskId, targetCount, userId =
       )
     : [...(state.weeklyGoals ?? []), { userId, weekStart, taskId, targetCount: normalizedTarget }];
   return { ...state, weeklyGoals };
+}
+
+export function deleteWeeklyGoal(state, userId, weekStart, taskId) {
+  return {
+    ...state,
+    weeklyGoals: (state.weeklyGoals ?? []).filter(
+      (goal) =>
+        !(
+          (goal.userId ?? 'ishida') === userId &&
+          goal.weekStart === weekStart &&
+          goal.taskId === taskId
+        )
+    )
+  };
+}
+
+export function upsertQuarterGoal(state, userId, quarterStart, taskId, targetCount) {
+  const normalizedTarget = normalizeTargetCount(targetCount);
+  const exists = (state.quarterGoals ?? []).some(
+    (goal) =>
+      (goal.userId ?? 'ishida') === userId &&
+      goal.quarterStart === quarterStart &&
+      goal.taskId === taskId
+  );
+  const row = { userId, quarterStart, taskId, targetCount: normalizedTarget };
+  return {
+    ...state,
+    quarterGoals: exists
+      ? state.quarterGoals.map((goal) =>
+          (goal.userId ?? 'ishida') === userId &&
+          goal.quarterStart === quarterStart &&
+          goal.taskId === taskId
+            ? row
+            : goal
+        )
+      : [...(state.quarterGoals ?? []), row]
+  };
+}
+
+export function deleteQuarterGoal(state, userId, quarterStart, taskId) {
+  return {
+    ...state,
+    quarterGoals: (state.quarterGoals ?? []).filter(
+      (goal) =>
+        !(
+          (goal.userId ?? 'ishida') === userId &&
+          goal.quarterStart === quarterStart &&
+          goal.taskId === taskId
+        )
+    )
+  };
 }
 
 export function upsertWeeklyGoalAction(state, weekStart, taskId, actionText, userId = 'ishida') {
@@ -459,22 +624,33 @@ export function setDailyCount(state, userId, date, taskId, count) {
 
 export function upsertReview(state, weekStart, patch) {
   const userId = patch.userId ?? 'ishida';
-  const existing = state.weeklyReviews.find(
+  const existing = (state.weeklyReviews ?? []).find(
     (review) => review.weekStart === weekStart && (review.userId ?? 'ishida') === userId
   );
   const nextReview = {
+    goalReflection: '',
+    overtimeCause: '',
+    nextPromise: '',
+    discussionItems: '',
+    goodPoints: '',
+    reflections: ['', '', ''],
+    improvements: ['', '', ''],
+    ...existing,
+    ...patch,
     weekStart,
     userId,
-    goalReflection: patch.goalReflection ?? existing?.goalReflection ?? '',
-    overtimeCause: patch.overtimeCause ?? existing?.overtimeCause ?? '',
-    nextPromise: patch.nextPromise ?? existing?.nextPromise ?? '',
-    discussionItems: patch.discussionItems ?? existing?.discussionItems ?? '',
+    goodPoints: String(patch.goodPoints ?? existing?.goodPoints ?? patch.goalReflection ?? existing?.goalReflection ?? ''),
+    reflections: normalizeThreeRows(
+      patch.reflections ?? existing?.reflections,
+      patch.overtimeCause ?? existing?.overtimeCause ?? ''
+    ),
+    improvements: normalizeThreeRows(patch.improvements ?? existing?.improvements),
     updatedAt: new Date().toISOString()
   };
   const weeklyReviews = existing
-    ? state.weeklyReviews.map((review) =>
+    ? (state.weeklyReviews ?? []).map((review) =>
         review.weekStart === weekStart && (review.userId ?? 'ishida') === userId ? nextReview : review
       )
-    : [...state.weeklyReviews, nextReview];
+    : [...(state.weeklyReviews ?? []), nextReview];
   return { ...state, weeklyReviews };
 }
