@@ -731,8 +731,10 @@ export function computeReviewMetrics(state, periodStart, options = {}) {
   };
 }
 
-export function getImprovementPromiseForWeek(state, weekStart) {
+export function getImprovementPromiseForWeek(state, weekStart, userId) {
   const previousWeek = addDays(weekStart, -7);
-  const review = (state.weeklyReviews ?? []).find((row) => row.weekStart === previousWeek);
+  const review = (state.weeklyReviews ?? []).find(
+    (row) => row.weekStart === previousWeek && (userId == null || matchesUser(row, userId))
+  );
   return review?.nextPromise?.trim() || '今週の改善約束は未設定です';
 }

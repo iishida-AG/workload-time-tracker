@@ -24,6 +24,11 @@ service cloud.firestore {
       allow read, write: if isWorkloadUser();
     }
 
+    match /workloadApps/default/users/{userId} {
+      allow read, write: if isWorkloadUser()
+        && userId in ['ishida', 'tanoue'];
+    }
+
     match /companies/{companyId} {
       allow read, create, update, delete: if isCrmOwner();
     }

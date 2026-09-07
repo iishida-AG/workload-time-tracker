@@ -391,6 +391,158 @@ main {
   gap: 16px;
 }
 
+.daily-goal-banner {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 14px;
+  padding: 18px;
+  border: 1px solid #b7d4ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 58%, #f7fbff 100%);
+  box-shadow: 0 16px 34px rgba(35, 100, 210, 0.1);
+}
+
+.daily-goal-banner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.daily-goal-banner-head h2 {
+  font-size: 22px;
+}
+
+.goal-highlight-badge {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #2364d2;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.daily-goal-banner-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 12px;
+}
+
+.daily-goal-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #d7e5fb;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.daily-goal-card h3,
+.daily-count-group h3 {
+  margin-bottom: 10px;
+  color: #1d2433;
+  font-size: 15px;
+}
+
+.daily-goal-row-list,
+.daily-todo-list,
+.daily-count-grid,
+.daily-count-group {
+  display: grid;
+  gap: 10px;
+}
+
+.daily-goal-row {
+  display: grid;
+  gap: 6px;
+}
+
+.daily-goal-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.daily-goal-row-main strong,
+.daily-goal-row-main span {
+  min-width: 0;
+}
+
+.daily-goal-row-main strong {
+  overflow-wrap: anywhere;
+}
+
+.daily-goal-row-main span {
+  flex: 0 0 auto;
+  color: #475467;
+  font-weight: 800;
+}
+
+.daily-promise-text {
+  margin-bottom: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #eef5ff;
+  color: #1d2433;
+  font-weight: 800;
+  line-height: 1.55;
+}
+
+.compact-todo-item {
+  padding: 8px 9px;
+}
+
+.daily-count-panel {
+  margin-bottom: 14px;
+}
+
+.daily-count-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.daily-count-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #dfe6ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.daily-count-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 78px 34px minmax(92px, auto);
+  gap: 8px;
+  align-items: center;
+}
+
+.daily-count-row span {
+  min-width: 0;
+  color: #1d2433;
+  font-size: 13px;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.daily-count-row input {
+  width: 78px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 800;
+}
+
+.daily-count-row em,
+.daily-count-row small {
+  color: #667085;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
 .main-stack,
 .review-layout,
 .master-layout {
@@ -1954,6 +2106,8 @@ main {
   .kpi-strip,
   .plan-prompt,
   .plan-prompt-controls,
+  .daily-goal-banner-grid,
+  .daily-count-grid,
   .shortcut-task-line,
   .copy-grid,
   .summary-grid,
@@ -1964,6 +2118,30 @@ main {
   .review-form,
   .ratio-card {
     grid-template-columns: 1fr;
+  }
+
+  .daily-goal-banner,
+  .daily-count-panel {
+    margin-left: 0;
+    margin-right: 0;
+    padding: 14px;
+  }
+
+  .daily-goal-banner-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .goal-highlight-badge {
+    align-self: flex-start;
+  }
+
+  .daily-count-row {
+    grid-template-columns: minmax(0, 1fr) 76px 30px;
+  }
+
+  .daily-count-row small {
+    grid-column: 1 / -1;
   }
 
   .timeline-panel,

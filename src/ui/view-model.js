@@ -70,6 +70,53 @@ function isShortcutVisibleForUser(task, userId) {
   return visibility === 'both' || visibility === userId;
 }
 
+function parseWeeklyTodoLines(todo) {
+  return String(todo?.todoText ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*[-・]\s*/, '').trim())
+    .filter(Boolean)
+    .map((text, index) => ({
+      text,
+      checked: Boolean(todo?.checkedItems?.[index])
+    }));
+}
+
+function weeklyTodoLinesFor(state, userId, weekStart) {
+  const todo = (state.weeklyTodos ?? []).find(
+    (row) => (row.userId ?? 'ishida') === userId && row.weekStart === weekStart
+  );
+  return parseWeeklyTodoLines(todo);
+}
+
+function buildWeeklyGoalRows(metrics) {
+  return metrics.goalRows.map((row) => ({
+    taskId: row.taskId,
+    taskName: row.taskName,
+    targetCount: row.targetCount,
+    actualCount: row.actualCount,
+    progressRate: row.progressRate
+  }));
+}
+
+function buildTodayCountRows(state, date, countableTasks, metrics, userId) {
+  const goalByTask = new Map(metrics.goalRows.map((row) => [row.taskId, row]));
+  return countableTasks.map((task) => {
+    const weeklyGoal = goalByTask.get(task.id);
+    const todayCount = (state.dailyCounts ?? [])
+      .filter((row) => (row.userId ?? 'ishida') === userId && row.date === date && row.taskId === task.id)
+      .reduce((sum, row) => sum + row.count, 0);
+    return {
+      taskId: task.id,
+      taskName: task.name,
+      projectId: task.projectId,
+      todayCount,
+      weeklyActualCount: weeklyGoal?.actualCount ?? 0,
+      weeklyTargetCount: weeklyGoal?.targetCount ?? 0,
+      progressRate: weeklyGoal?.progressRate ?? 0
+    };
+  });
+}
+
 export function createDashboardViewModel(state, date, userId = 'ishida') {
   const weekStart = getWeekStart(date);
   const partnerUserId = getPartnerUserId(userId);
@@ -84,6 +131,7 @@ export function createDashboardViewModel(state, date, userId = 'ishida') {
     .sort((a, b) => a.order - b.order);
   const countableTasks = activeTasks.filter((task) => task.countable);
   const goalProgress = metrics.goalRows.length === 0 ? 0 : Math.round(metrics.goalRows.reduce((sum, row) => sum + row.progressRate, 0) / metrics.goalRows.length);
+  const weeklyGoalRows = buildWeeklyGoalRows(metrics);
 
   return {
     userId,
@@ -104,7 +152,10 @@ export function createDashboardViewModel(state, date, userId = 'ishida') {
     partnerDailyReportText,
     activeTasks,
     countableTasks,
-    improvementPromise: getImprovementPromiseForWeek(state, weekStart),
+    weeklyGoalRows,
+    todayCountRows: buildTodayCountRows(state, date, countableTasks, metrics, userId),
+    weeklyTodoLines: weeklyTodoLinesFor(state, userId, weekStart),
+    improvementPromise: getImprovementPromiseForWeek(state, weekStart, userId),
     kpis: [
       { label: labels.weeklyHours, value: `${metrics.totalActualHours}h` },
       { label: labels.capacityRate, value: formatPercent(metrics.capacityRate) },

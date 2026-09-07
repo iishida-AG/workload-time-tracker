@@ -8,6 +8,106 @@ export function hasFirebaseConfig(config) {
   return requiredValues.every((value) => value && !/(REPLACE|YOUR|TODO|PLACEHOLDER|EXAMPLE)/i.test(value));
 }
 
+const keyedCollections = {
+  timelineSettings: (row) => `${row.userId}|${row.date}`,
+  weeklyProjectGoals: (row) => `${row.userId}|${row.weekStart}|${row.projectId}`,
+  weeklyGoals: (row) => `${row.userId}|${row.weekStart}|${row.taskId}`,
+  weeklyGoalActions: (row) => `${row.userId}|${row.weekStart}|${row.taskId}`,
+  monthlyProjectGoals: (row) => `${row.userId}|${row.month}|${row.projectId}`,
+  monthlyTaskTargets: (row) => `${row.userId}|${row.month}|${row.taskId}`,
+  projectGoalVisibility: (row) => `${row.userId}|${row.projectId}`,
+  dayPlans: (row) => `${row.userId}|${row.date}|${row.hour}`,
+  dayActuals: (row) => `${row.userId}|${row.date}|${row.hour}`,
+  dailyCounts: (row) => `${row.userId}|${row.date}|${row.taskId}`,
+  weeklyReviews: (row) => `${row.userId}|${row.weekStart}`,
+  weeklyTodos: (row) => `${row.userId}|${row.weekStart}`
+};
+
+const userScopedCollectionNames = Object.keys(keyedCollections);
+const workloadUserIds = ['ishida', 'tanoue'];
+
+function mergeRowsByKey(remoteRows = [], localRows = [], keyFor) {
+  const rowsByKey = new Map();
+  for (const row of remoteRows) rowsByKey.set(keyFor(row), row);
+  for (const row of localRows) rowsByKey.set(keyFor(row), row);
+  return [...rowsByKey.values()];
+}
+
+function mergeMasterRows(remoteRows = [], localRows = []) {
+  return mergeRowsByKey(remoteRows, localRows, (row) => row.id);
+}
+
+export function mergeSharedStateForSave(remoteState, localNextState) {
+  const remote = normalizeState(remoteState ?? {});
+  const local = normalizeState(localNextState ?? {});
+  const merged = {
+    ...remote,
+    ...local,
+    projects: mergeMasterRows(remote.projects, local.projects),
+    tasks: mergeMasterRows(remote.tasks, local.tasks)
+  };
+
+  for (const [collectionName, keyFor] of Object.entries(keyedCollections)) {
+    merged[collectionName] = mergeRowsByKey(remote[collectionName], local[collectionName], keyFor);
+  }
+
+  return normalizeState(merged);
+}
+
+function rootStateForSave(state) {
+  const normalized = normalizeState(state ?? {});
+  const rootState = { ...normalized };
+  for (const collectionName of userScopedCollectionNames) {
+    rootState[collectionName] = [];
+  }
+  return rootState;
+}
+
+function userStateForSave(state, userId) {
+  const normalized = normalizeState(state ?? {});
+  const userState = {
+    projects: [],
+    tasks: []
+  };
+  for (const collectionName of userScopedCollectionNames) {
+    userState[collectionName] = (normalized[collectionName] ?? []).filter(
+      (row) => (row.userId ?? 'ishida') === userId
+    );
+  }
+  return userState;
+}
+
+function mergeUserStateForSave(remoteState, localNextState, userId) {
+  const remote = normalizeState({ ...(remoteState ?? {}), projects: [], tasks: [] });
+  const local = userStateForSave(localNextState, userId);
+  const merged = { projects: [], tasks: [] };
+  for (const [collectionName, keyFor] of Object.entries(keyedCollections)) {
+    merged[collectionName] = mergeRowsByKey(remote[collectionName], local[collectionName], keyFor).filter(
+      (row) => (row.userId ?? 'ishida') === userId
+    );
+  }
+  return merged;
+}
+
+export function combineSharedStateSnapshots(rootState, userStatesById = {}) {
+  const combined = normalizeState(rootState ?? {});
+  for (const userId of workloadUserIds) {
+    const userState = normalizeState({ ...(userStatesById[userId] ?? {}), projects: [], tasks: [] });
+    for (const [collectionName, keyFor] of Object.entries(keyedCollections)) {
+      combined[collectionName] = mergeRowsByKey(combined[collectionName], userState[collectionName], keyFor);
+    }
+  }
+  return normalizeState(combined);
+}
+
+function workloadRootRef(firestore, db) {
+  return firestore.doc(db, 'workloadApps', 'default');
+}
+
+function workloadUserRef(firestore, db, userId) {
+  return firestore.doc(db, 'workloadApps', 'default', 'users', userId);
+}
+
 export function createLocalStateAdapter(storage = globalThis.localStorage, today) {
   let state = loadState(storage, today);
   const listeners = new Set();
@@ -39,10 +139,15 @@ export function createFirestoreStateAdapter(
         deps.importFirebaseFirestoreModule()
       ]);
       const db = firestore.getFirestore(app);
-      const ref = firestore.doc(db, 'workloadApps', 'default');
+      const rootRef = workloadRootRef(firestore, db);
+      const userRefs = Object.fromEntries(workloadUserIds.map((userId) => [userId, workloadUserRef(firestore, db, userId)]));
       return new Promise((resolve, reject) => {
         let settled = false;
-        let unsubscribe = () => {};
+        const snapshots = {};
+        const unsubscribes = [];
+        const unsubscribe = () => {
+          for (const cleanup of unsubscribes) cleanup();
+        };
         const rejectSubscription = (error) => {
           if (!settled) {
             settled = true;
@@ -51,29 +156,70 @@ export function createFirestoreStateAdapter(
           }
           console.error('Firestore subscription failed', error);
         };
-        unsubscribe = firestore.onSnapshot(ref, async (snapshot) => {
+        const emitIfReady = () => {
+          if (!snapshots.root || workloadUserIds.some((userId) => !snapshots[userId])) return;
+          callback(combineSharedStateSnapshots(snapshots.root, Object.fromEntries(workloadUserIds.map((userId) => [userId, snapshots[userId]]))));
+          if (!settled) {
+            settled = true;
+            resolve(unsubscribe);
+          }
+        };
+        unsubscribes.push(firestore.onSnapshot(rootRef, async (snapshot) => {
           try {
             if (!snapshot.exists()) {
               const initial = createAppState(today);
-              await firestore.setDoc(ref, initial);
-              callback(initial);
+              await firestore.setDoc(rootRef, rootStateForSave(initial), { merge: true });
+              snapshots.root = initial;
             } else {
-              callback(normalizeState(snapshot.data()));
+              snapshots.root = snapshot.data();
             }
-            if (!settled) {
-              settled = true;
-              resolve(unsubscribe);
-            }
+            emitIfReady();
           } catch (error) {
             rejectSubscription(error);
           }
-        }, rejectSubscription);
+        }, rejectSubscription));
+        for (const [userId, userRef] of Object.entries(userRefs)) {
+          unsubscribes.push(firestore.onSnapshot(userRef, (snapshot) => {
+            snapshots[userId] = snapshot.exists() ? snapshot.data() : {};
+            emitIfReady();
+          }, rejectSubscription));
+        }
       });
     },
-    async save(nextState) {
-      const [app, firestore] = await Promise.all([getFirebaseApp(firebaseConfig), importFirebaseFirestoreModule()]);
+    async save(nextState, options = {}) {
+      const [app, firestore] = await Promise.all([
+        deps.getFirebaseApp(firebaseConfig),
+        deps.importFirebaseFirestoreModule()
+      ]);
       const db = firestore.getFirestore(app);
-      await firestore.setDoc(firestore.doc(db, 'workloadApps', 'default'), normalizeState(nextState), { merge: true });
+      const userId = workloadUserIds.includes(options.userId) ? options.userId : 'ishida';
+      const rootRef = workloadRootRef(firestore, db);
+      const userRef = workloadUserRef(firestore, db, userId);
+      if (typeof firestore.runTransaction === 'function') {
+        await firestore.runTransaction(db, async (transaction) => {
+          const rootSnapshot = await transaction.get(rootRef);
+          const userSnapshot = await transaction.get(userRef);
+          const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
+          const remoteUser = userSnapshot.exists() ? userSnapshot.data() : {};
+          transaction.set(rootRef, rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState)), { merge: true });
+          transaction.set(userRef, mergeUserStateForSave(remoteUser, nextState, userId), { merge: true });
+        });
+        return;
+      }
+      if (typeof firestore.getDoc === 'function') {
+        const [rootSnapshot, userSnapshot] = await Promise.all([firestore.getDoc(rootRef), firestore.getDoc(userRef)]);
+        const remoteRoot = rootSnapshot.exists() ? rootSnapshot.data() : createAppState(today);
+        const remoteUser = userSnapshot.exists() ? userSnapshot.data() : {};
+        await Promise.all([
+          firestore.setDoc(rootRef, rootStateForSave(mergeSharedStateForSave(remoteRoot, nextState)), { merge: true }),
+          firestore.setDoc(userRef, mergeUserStateForSave(remoteUser, nextState, userId), { merge: true })
+        ]);
+        return;
+      }
+      await Promise.all([
+        firestore.setDoc(rootRef, rootStateForSave(nextState), { merge: true }),
+        firestore.setDoc(userRef, userStateForSave(nextState, userId), { merge: true })
+      ]);
     }
   };
 }

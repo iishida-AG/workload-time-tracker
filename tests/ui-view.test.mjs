@@ -74,6 +74,61 @@ test('createDashboardViewModel exposes the weekly reminder and KPI cards', () =>
   assert.equal(view.countableTasks.length, 1);
 });
 
+test('createDashboardViewModel exposes current weekly goals and todos for the daily top cards', () => {
+  const state = {
+    ...baseState(),
+    weeklyGoals: [{ userId: 'ishida', weekStart: '2026-08-03', taskId: 't1', targetCount: 10 }],
+    dailyCounts: [
+      { userId: 'ishida', date: '2026-08-04', taskId: 't1', count: 3 },
+      { userId: 'ishida', date: '2026-08-05', taskId: 't1', count: 2 },
+      { userId: 'tanoue', date: '2026-08-05', taskId: 't1', count: 9 }
+    ],
+    weeklyReviews: [
+      {
+        userId: 'tanoue',
+        weekStart: '2026-07-27',
+        goalReflection: '',
+        overtimeCause: '',
+        nextPromise: '田上の約束',
+        updatedAt: '2026-08-01T09:00:00.000Z'
+      },
+      {
+        userId: 'ishida',
+        weekStart: '2026-07-27',
+        goalReflection: '',
+        overtimeCause: '',
+        nextPromise: '朝一で提案候補を3件出す',
+        updatedAt: '2026-08-01T10:00:00.000Z'
+      }
+    ],
+    weeklyTodos: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-08-03',
+        todoText: '- SES即レス\n- BP打ち合わせ準備',
+        checkedItems: { 0: true }
+      }
+    ]
+  };
+
+  const view = createDashboardViewModel(state, '2026-08-05', 'ishida');
+
+  assert.deepEqual(view.weeklyGoalRows, [
+    {
+      taskId: 't1',
+      taskName: 'Proposal',
+      targetCount: 10,
+      actualCount: 5,
+      progressRate: 50
+    }
+  ]);
+  assert.equal(view.todayCountRows[0].taskId, 't1');
+  assert.equal(view.todayCountRows[0].todayCount, 2);
+  assert.deepEqual(view.weeklyTodoLines.map((line) => line.text), ['SES即レス', 'BP打ち合わせ準備']);
+  assert.equal(view.weeklyTodoLines[0].checked, true);
+  assert.equal(view.improvementPromise, '朝一で提案候補を3件出す');
+});
+
 test('createDashboardViewModel outputs Ishida daily report with minute range lines', () => {
   const state = {
     ...baseState(),

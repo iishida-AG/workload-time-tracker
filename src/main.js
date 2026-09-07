@@ -403,7 +403,7 @@ function commit(nextState, options = {}) {
   state = nextState;
   if (adapter) {
     suppressedAdapterRenderCount += 1;
-    const result = adapter.save(nextState);
+    const result = adapter.save(nextState, { userId: activeUserId });
     if (result && typeof result.catch === 'function') {
       result.catch((error) => console.error('Failed to save state', error));
     }
@@ -714,13 +714,14 @@ function renderPlanPromptTaskOptions(tasks, selectedTaskId) {
 
 function renderCopyTextarea(label, text) {
   const copyKey = getCopyTextKey(label);
+  const buttonLabel = label === '予定' ? '予定コピー' : label === '日報全文' ? '日報全文コピー' : `${label}コピー`;
   return `
     <label class="copy-block">
       <span class="copy-block-header">
         <span>${escapeHtml(label)}</span>
         <button class="ghost-button compact-copy-button" type="button" data-action="copy-daily-text" data-copy-key="${escapeHtml(copyKey)}">
           ${icon('copy')}
-          <span>コピー</span>
+          <span>${escapeHtml(buttonLabel)}</span>
         </button>
       </span>
       <textarea class="copy-text" readonly>${escapeHtml(text)}</textarea>
@@ -1290,6 +1291,126 @@ function renderWeeklyTodosPanel() {
   `;
 }
 
+function progressWidth(rate) {
+  return Math.max(0, Math.min(100, Number(rate) || 0));
+}
+
+function renderDailyWeeklyGoalBanner(view) {
+  const goalRows = view.weeklyGoalRows ?? [];
+  const todoLines = view.weeklyTodoLines ?? [];
+  return `
+    <section class="daily-goal-banner">
+      <div class="daily-goal-banner-head">
+        <div>
+          <span class="section-kicker">今週の目標カード</span>
+          <h2>${escapeHtml(weekStart())} 週 / ${escapeHtml(displayUserLabel(view.userId))}</h2>
+        </div>
+        <span class="goal-highlight-badge">毎日確認</span>
+      </div>
+      <div class="daily-goal-banner-grid">
+        <div class="daily-goal-card">
+          <h3>今週の数値目標</h3>
+          ${
+            goalRows.length === 0
+              ? '<p class="empty-state compact">週次振り返りで今週の目標件数を入力してください</p>'
+              : `<div class="daily-goal-row-list">
+                  ${goalRows
+                    .map(
+                      (row) => `
+                        <div class="daily-goal-row">
+                          <div class="daily-goal-row-main">
+                            <strong>${escapeHtml(row.taskName)}</strong>
+                            <span>${row.actualCount}/${row.targetCount || '-'}件 ${row.targetCount ? `(${row.progressRate}%)` : ''}</span>
+                          </div>
+                          <div class="monthly-progress-track" aria-hidden="true"><span style="width:${progressWidth(row.progressRate)}%"></span></div>
+                        </div>
+                      `
+                    )
+                    .join('')}
+                </div>`
+          }
+        </div>
+        <div class="daily-goal-card">
+          <h3>今週の改善約束</h3>
+          <p class="daily-promise-text">${escapeHtml(view.improvementPromise)}</p>
+          <div class="daily-todo-list">
+            ${
+              todoLines.length === 0
+                ? '<p class="empty-state compact">今週必ずやることは未設定です</p>'
+                : todoLines
+                    .map(
+                      (line, index) => `
+                        <label class="weekly-todo-item compact-todo-item">
+                          <input type="checkbox" data-field="weekly-todo-check" data-user-id="${escapeHtml(view.userId)}" data-item-index="${index}" ${line.checked ? 'checked' : ''} />
+                          <span>${escapeHtml(line.text)}</span>
+                        </label>
+                      `
+                    )
+                    .join('')
+            }
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderDailyCountEntryPanel(view) {
+  const rowsByProject = activeProjects()
+    .map((project) => ({
+      project,
+      rows: (view.todayCountRows ?? []).filter((row) => row.projectId === project.id)
+    }))
+    .filter((group) => group.rows.length > 0);
+
+  if (rowsByProject.length === 0) {
+    return `
+      <section class="panel daily-count-panel">
+        <div class="panel-heading compact">
+          <div>
+            <span class="section-kicker">本日の実績件数入力</span>
+            <h2>件数管理タスクなし</h2>
+          </div>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="panel daily-count-panel">
+      <div class="panel-heading compact">
+        <div>
+          <span class="section-kicker">本日の実績件数入力</span>
+          <h2>今日の提案数・商談数などを入力</h2>
+        </div>
+      </div>
+      <div class="daily-count-grid">
+        ${rowsByProject
+          .map(
+            ({ project, rows }) => `
+              <div class="daily-count-group">
+                <h3>${escapeHtml(project.name)}</h3>
+                ${rows
+                  .map(
+                    (row) => `
+                      <label class="daily-count-row">
+                        <span>${escapeHtml(row.taskName)}</span>
+                        <input type="number" min="0" step="1" value="${row.todayCount}" data-field="daily-task-count" data-task-id="${escapeHtml(row.taskId)}" />
+                        <em>今日</em>
+                        <small>週合計 ${row.weeklyActualCount}/${row.weeklyTargetCount || '-'}件</small>
+                      </label>
+                    `
+                  )
+                  .join('')}
+              </div>
+            `
+          )
+          .join('')}
+      </div>
+    </section>
+  `;
+}
+
 function renderProjectTaskCountsLegacy(projectId, tasks) {
   const projectTasks = tasks.filter((task) => task.projectId === projectId);
   if (projectTasks.length === 0) {
@@ -1561,6 +1682,8 @@ function renderReviewWeeklyTargets() {
 
 function renderDashboard(view) {
   return `
+    ${renderDailyWeeklyGoalBanner(view)}
+    ${renderDailyCountEntryPanel(view)}
     <div class="dashboard-layout">
       <div class="main-stack">
         ${renderPlanPrompt(view)}
@@ -1569,8 +1692,6 @@ function renderDashboard(view) {
       </div>
       ${renderShortcutPalette(view)}
     </div>
-    ${renderWeeklyTodosPanel()}
-    ${renderWeeklyProjectGoals(view)}
   `;
 }
 
