@@ -10,6 +10,9 @@ export function hasFirebaseConfig(config) {
 
 const keyedCollections = {
   timelineSettings: (row) => `${row.userId}|${row.date}`,
+  quarterGoalNotes: (row) => `${row.userId}|${row.quarterStart}`,
+  quarterGoals: (row) => `${row.userId}|${row.quarterStart}|${row.taskId}`,
+  weeklyGoalNotes: (row) => `${row.userId}|${row.weekStart}`,
   weeklyProjectGoals: (row) => `${row.userId}|${row.weekStart}|${row.projectId}`,
   weeklyGoals: (row) => `${row.userId}|${row.weekStart}|${row.taskId}`,
   weeklyGoalActions: (row) => `${row.userId}|${row.weekStart}|${row.taskId}`,

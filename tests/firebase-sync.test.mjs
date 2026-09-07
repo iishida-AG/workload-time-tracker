@@ -120,6 +120,41 @@ await test('mergeSharedStateForSave preserves other users rows during same-day s
   assert.equal(merged.dailyCounts.find((row) => row.userId === 'ishida').count, 2);
 });
 
+await test('new review collections merge by user and period keys', () => {
+  const remote = {
+    quarterGoals: [
+      { userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't1', targetCount: 80 }
+    ],
+    quarterGoalNotes: [
+      {
+        userId: 'tanoue',
+        quarterStart: '2026-09-01',
+        items: [{ id: 'n1', text: '田上目標' }]
+      }
+    ],
+    weeklyGoalNotes: []
+  };
+  const local = {
+    quarterGoals: [
+      { userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 120 }
+    ],
+    quarterGoalNotes: [],
+    weeklyGoalNotes: [
+      {
+        userId: 'ishida',
+        weekStart: '2026-09-07',
+        items: [{ id: 'n2', text: '石田目標' }]
+      }
+    ]
+  };
+
+  const merged = mergeSharedStateForSave(remote, local);
+
+  assert.equal(merged.quarterGoals.length, 2);
+  assert.equal(merged.quarterGoalNotes[0].userId, 'tanoue');
+  assert.equal(merged.weeklyGoalNotes[0].userId, 'ishida');
+});
+
 await test('combineSharedStateSnapshots reads legacy root data and user-specific documents together', () => {
   const combined = combineSharedStateSnapshots(
     {
@@ -165,6 +200,18 @@ await test('createFirestoreStateAdapter saves user-scoped rows to the active use
       dailyCounts: [
         { userId: 'ishida', date: '2026-08-05', taskId: 't1', count: 2 },
         { userId: 'tanoue', date: '2026-08-05', taskId: 't1', count: 7 }
+      ],
+      quarterGoalNotes: [
+        { userId: 'ishida', quarterStart: '2026-09-01', items: [{ id: 'q1', text: '石田目標' }] },
+        { userId: 'tanoue', quarterStart: '2026-09-01', items: [{ id: 'q2', text: '田上目標' }] }
+      ],
+      quarterGoals: [
+        { userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 120 },
+        { userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't1', targetCount: 80 }
+      ],
+      weeklyGoalNotes: [
+        { userId: 'ishida', weekStart: '2026-09-07', items: [{ id: 'w1', text: '即日追客' }] },
+        { userId: 'tanoue', weekStart: '2026-09-07', items: [{ id: 'w2', text: '面談準備' }] }
       ]
     },
     { userId: 'ishida' }
@@ -173,5 +220,14 @@ await test('createFirestoreStateAdapter saves user-scoped rows to the active use
   const userWrite = writes.find((write) => write.path === 'workloadApps/default/users/ishida');
   assert.ok(userWrite);
   assert.deepEqual(userWrite.data.dailyCounts, [{ userId: 'ishida', date: '2026-08-05', taskId: 't1', count: 2 }]);
+  assert.deepEqual(userWrite.data.quarterGoalNotes, [
+    { userId: 'ishida', quarterStart: '2026-09-01', items: [{ id: 'q1', text: '石田目標' }] }
+  ]);
+  assert.deepEqual(userWrite.data.quarterGoals, [
+    { userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 120 }
+  ]);
+  assert.deepEqual(userWrite.data.weeklyGoalNotes, [
+    { userId: 'ishida', weekStart: '2026-09-07', items: [{ id: 'w1', text: '即日追客' }] }
+  ]);
   assert.equal(writes.some((write) => write.path === 'workloadApps/default/users/tanoue'), false);
 });
