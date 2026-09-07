@@ -86,6 +86,8 @@ function renderProgressRows(progress) {
 }
 
 function renderGoalColumns(view, period, config, icon) {
+  const usedTaskIds = new Set(period.goalProgress.rows.map((row) => row.taskId));
+  const addDisabled = view.countableTasks.every((task) => usedTaskIds.has(task.id));
   return `<div class="review-goal-grid">
     <div class="review-goal-column">
       <div class="review-column-heading">
@@ -97,7 +99,7 @@ function renderGoalColumns(view, period, config, icon) {
     <div class="review-goal-column">
       <div class="review-column-heading">
         <h3>定量目標</h3>
-        ${renderIconButton(config.addGoalAction, '定量目標を追加', icon)}
+        ${renderIconButton(config.addGoalAction, '定量目標を追加', icon, addDisabled ? 'disabled' : '')}
       </div>
       ${renderGoalRows(view, period.goalProgress, config, icon)}
     </div>
@@ -155,30 +157,145 @@ function renderWeeklyGoalCard(view, icon) {
   </section>`;
 }
 
-function renderCardShell(key, kicker, title) {
-  return `<section class="panel review-card" data-review-card="${key}">
-    <div class="panel-heading compact"><div><span class="section-kicker">${kicker}</span><h2>${title}</h2></div></div>
+function signedHours(value) {
+  const hours = Number(value) || 0;
+  return `${hours > 0 ? '+' : ''}${hours}h`;
+}
+
+function differenceClass(minutes) {
+  if (minutes > 0) return 'over';
+  if (minutes < 0) return 'under';
+  return 'same';
+}
+
+function renderActualTimePie(rows, totalHours) {
+  if (rows.length === 0) return '';
+  const colors = ['#2364d2', '#1f9d6a', '#f59e0b', '#7c3aed', '#dc5265', '#0e91a8'];
+  let cursor = 0;
+  const stops = rows.map((row, index) => {
+    const start = cursor;
+    cursor += row.ratio;
+    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+  });
+  return `<div class="review-time-pie-block">
+    <div class="review-time-pie" style="background:conic-gradient(${stops.join(', ')})" role="img" aria-label="実績工数の大分類別割合">
+      <span><strong>${totalHours}h</strong><small>実績</small></span>
+    </div>
+    <div class="review-time-legend">
+      ${rows.map((row, index) => `<div>
+        <i style="background:${colors[index % colors.length]}"></i>
+        <span>${escapeHtml(row.projectName)}</span>
+        <strong>${row.hours}h</strong>
+        <em>${row.ratio}%</em>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderTimeBars(rows) {
+  if (rows.length === 0) return '';
+  const maxMinutes = Math.max(
+    ...rows.flatMap((row) => [row.plannedMinutes, row.actualMinutes]),
+    1
+  );
+  return `<div class="review-time-breakdown">
+    ${rows.map((project) => `<div class="review-time-project">
+      <div class="review-time-line">
+        <strong>${escapeHtml(project.projectName)}</strong>
+        <span>予定 ${project.plannedHours}h / 実績 ${project.actualHours}h / <b class="${differenceClass(project.diffMinutes)}">${signedHours(project.diffHours)}</b></span>
+      </div>
+      <div class="review-paired-bars" aria-hidden="true">
+        <div><em>予定</em><i><span class="planned" style="width:${Math.min(100, (project.plannedMinutes / maxMinutes) * 100)}%"></span></i></div>
+        <div><em>実績</em><i><span class="actual" style="width:${Math.min(100, (project.actualMinutes / maxMinutes) * 100)}%"></span></i></div>
+      </div>
+      <div class="review-time-task-list">
+        ${(project.tasks ?? []).map((task) => {
+          const taskMax = Math.max(project.plannedMinutes, project.actualMinutes, 1);
+          return `<div class="review-time-task">
+            <div class="review-time-line">
+              <span>${escapeHtml(task.taskName)}</span>
+              <span>予定 ${task.plannedHours}h / 実績 ${task.actualHours}h / <b class="${differenceClass(task.diffMinutes)}">${signedHours(task.diffHours)}</b></span>
+            </div>
+            <div class="review-paired-bars compact" aria-hidden="true">
+              <div><em>予定</em><i><span class="planned" style="width:${Math.min(100, (task.plannedMinutes / taskMax) * 100)}%"></span></i></div>
+              <div><em>実績</em><i><span class="actual" style="width:${Math.min(100, (task.actualMinutes / taskMax) * 100)}%"></span></i></div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderTimeAnalysisCard(view) {
+  const metrics = view.week.metrics;
+  const empty = metrics.projectRows.length === 0 && metrics.planActualRows.length === 0;
+  return `<section class="panel review-card" data-review-card="analysis">
+    <div class="panel-heading compact"><div><span class="section-kicker">工数分析</span><h2>予定と実績</h2></div></div>
+    ${empty
+      ? '<p class="empty-state compact">選択した週の予定・実績工数はまだありません</p>'
+      : `<div class="review-time-grid">
+          ${renderActualTimePie(metrics.projectRows, metrics.totalActualHours)}
+          ${renderTimeBars(metrics.planActualRows)}
+        </div>`}
   </section>`;
 }
 
-function renderTimeAnalysisCard() {
-  return renderCardShell('analysis', '工数分析', '予定と実績');
+function renderGoodPointsCard(view) {
+  return `<section class="panel review-card" data-review-card="good-points">
+    <div class="panel-heading compact"><div><span class="section-kicker">今週の振り返り</span><h2>良かった点</h2></div></div>
+    <label class="review-wide-field">
+      <span>良かった点</span>
+      <textarea data-review-field="goodPoints" placeholder="成果につながった行動や続けたいこと">${escapeHtml(view.review.goodPoints)}</textarea>
+    </label>
+  </section>`;
 }
 
-function renderGoodPointsCard() {
-  return renderCardShell('good-points', '今週の振り返り', '良かった点');
+function renderReflectionCard(view) {
+  return `<section class="panel review-card" data-review-card="reflection">
+    <div class="panel-heading compact"><div><span class="section-kicker">振り返り</span><h2>反省点と改善点</h2></div></div>
+    <div class="review-reflection-grid">
+      ${Array.from({ length: 3 }, (_, index) => `<div class="review-reflection-row">
+        <label>
+          <span>反省点 ${index + 1}</span>
+          <textarea data-review-field="reflections" data-review-index="${index}" aria-label="反省点${index + 1}" placeholder="うまくいかなかったこと">${escapeHtml(view.review.reflections[index])}</textarea>
+        </label>
+        <label>
+          <span>改善点 ${index + 1}</span>
+          <textarea data-review-field="improvements" data-review-index="${index}" aria-label="改善点${index + 1}" placeholder="次に変える行動">${escapeHtml(view.review.improvements[index])}</textarea>
+        </label>
+      </div>`).join('')}
+    </div>
+  </section>`;
 }
 
-function renderReflectionCard() {
-  return renderCardShell('reflection', '振り返り', '反省点と改善点');
+function renderNextActionsCard(view, icon) {
+  const rows = view.nextActionRows.length > 0
+    ? view.nextActionRows
+    : [{ id: `${view.selectedWeek.start}-action-draft`, text: '' }];
+  return `<section class="panel review-card" data-review-card="next-actions">
+    <div class="panel-heading compact review-column-heading">
+      <div><span class="section-kicker">次のアクション</span><h2>今週やるべきこと</h2></div>
+      ${renderIconButton('add-next-action', '次のアクションを追加', icon)}
+    </div>
+    <div class="next-action-list">
+      ${rows.map((row) => `<div class="next-action-row" data-action-row-id="${escapeHtml(row.id)}">
+        <span class="review-bullet" aria-hidden="true">・</span>
+        <input type="text" value="${escapeHtml(row.text)}" data-field="next-action-row" aria-label="次のアクション" placeholder="今週やるべきこと" />
+        <button type="button" class="icon-button danger-icon" data-action="delete-next-action" aria-label="次のアクションを削除" title="次のアクションを削除">${icon('trash')}</button>
+      </div>`).join('')}
+    </div>
+  </section>`;
 }
 
-function renderNextActionsCard() {
-  return renderCardShell('next-actions', '次のアクション', '今週やるべきこと');
-}
-
-function renderDiscussionCard() {
-  return renderCardShell('discussion', '共有事項', '話し合いたいこと');
+function renderDiscussionCard(view) {
+  return `<section class="panel review-card" data-review-card="discussion">
+    <div class="panel-heading compact"><div><span class="section-kicker">共有事項</span><h2>話し合いたいこと</h2></div></div>
+    <label class="review-wide-field">
+      <span>話し合いたいこと</span>
+      <textarea class="review-discussion-field" data-review-field="discussionItems" placeholder="相談したいことや意思決定が必要なこと">${escapeHtml(view.review.discussionItems)}</textarea>
+    </label>
+  </section>`;
 }
 
 export function renderReviewPage(view, { icon }) {
@@ -188,7 +305,7 @@ export function renderReviewPage(view, { icon }) {
     ${renderTimeAnalysisCard(view)}
     ${renderGoodPointsCard(view)}
     ${renderReflectionCard(view)}
-    ${renderNextActionsCard(view)}
+    ${renderNextActionsCard(view, icon)}
     ${renderDiscussionCard(view)}
   </div>`;
 }

@@ -31,14 +31,17 @@ import {
   addProject,
   addTask,
   deleteQuarterGoal,
+  deleteQuarterGoalNote,
   deleteProject,
   deleteTask,
   deleteWeeklyGoal,
+  deleteWeeklyGoalNote,
   getTimelineSetting,
   hideProject,
   hideTask,
   moveProjectOrder,
   moveTaskOrder,
+  replaceWeeklyTodoLines,
   setDailyCount,
   updateProject,
   updateTask,
@@ -47,10 +50,12 @@ import {
   upsertMonthlyTaskTarget,
   upsertProjectGoalVisibility,
   upsertQuarterGoal,
+  upsertQuarterGoalNote,
   upsertReview,
   upsertTimelineSetting,
   upsertWeeklyGoal,
   upsertWeeklyGoalAction,
+  upsertWeeklyGoalNote,
   upsertWeeklyTodo,
   upsertWeeklyProjectGoal
 } from './state/store.js';
@@ -83,6 +88,7 @@ let suppressedAdapterRenderCount = 0;
 let undoStack = [];
 let dismissedPlanPromptKeys = new Set();
 let planPromptTimer = null;
+let reviewRowIdCounter = 0;
 
 const WORKSPACE_HOME_URL = 'https://ishida-ai-tool-dev.web.app/';
 const EXPENSES_URL = 'https://ishida-ai-tool-dev.web.app/expenses';
@@ -391,6 +397,37 @@ function currentReviewView() {
   selectedReviewMonthKey = view.monthKey;
   selectedReviewWeekStart = view.selectedWeek.start;
   return view;
+}
+
+function reviewRowId(prefix) {
+  const randomId = globalThis.crypto?.randomUUID?.();
+  if (randomId) return `${prefix}-${randomId}`;
+  reviewRowIdCounter += 1;
+  return `${prefix}-${Date.now()}-${reviewRowIdCounter}`;
+}
+
+function nextActionLinesFromCard(element) {
+  const card = element?.closest?.('[data-review-card="next-actions"]');
+  if (!card) return [];
+  return [...card.querySelectorAll('.next-action-row')].map((row, index) => ({
+    id: row.dataset.actionRowId ?? `${selectedReviewWeekStart}-action-${index}`,
+    text: row.querySelector('[data-field="next-action-row"]')?.value ?? ''
+  }));
+}
+
+function addNextActionDraft(button) {
+  const list = button.closest('[data-review-card="next-actions"]')?.querySelector('.next-action-list');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'next-action-row';
+  row.dataset.actionRowId = reviewRowId(`${selectedReviewWeekStart}-action`);
+  row.innerHTML = `
+    <span class="review-bullet" aria-hidden="true">・</span>
+    <input type="text" value="" data-field="next-action-row" aria-label="次のアクション" placeholder="今週やるべきこと" />
+    <button type="button" class="icon-button danger-icon" data-action="delete-next-action" aria-label="次のアクションを削除" title="次のアクションを削除">${icon('trash')}</button>
+  `;
+  list.append(row);
+  row.querySelector('input')?.focus();
 }
 
 function reviewWeekStart() {
@@ -2371,6 +2408,74 @@ function handleClick(event) {
     selectedReviewWeekStart = button.dataset.weekStart;
     render();
   }
+  if (action === 'add-quarter-note') {
+    const view = currentReviewView();
+    commit(
+      upsertQuarterGoalNote(
+        state,
+        activeUserId,
+        view.selectedQuarter.start,
+        reviewRowId('quarter-note'),
+        ''
+      )
+    );
+  }
+  if (action === 'delete-quarter-note') {
+    const view = currentReviewView();
+    commit(deleteQuarterGoalNote(state, activeUserId, view.selectedQuarter.start, button.dataset.itemId));
+  }
+  if (action === 'add-week-note') {
+    const view = currentReviewView();
+    commit(
+      upsertWeeklyGoalNote(
+        state,
+        activeUserId,
+        view.selectedWeek.start,
+        reviewRowId('week-note'),
+        ''
+      )
+    );
+  }
+  if (action === 'delete-week-note') {
+    const view = currentReviewView();
+    commit(deleteWeeklyGoalNote(state, activeUserId, view.selectedWeek.start, button.dataset.itemId));
+  }
+  if (action === 'add-quarter-goal') {
+    const view = currentReviewView();
+    const usedTaskIds = new Set(view.quarter.goalProgress.rows.map((row) => row.taskId));
+    const task = view.countableTasks.find((row) => !usedTaskIds.has(row.id));
+    if (task) commit(upsertQuarterGoal(state, activeUserId, view.selectedQuarter.start, task.id, 0));
+  }
+  if (action === 'delete-quarter-goal') {
+    const view = currentReviewView();
+    commit(deleteQuarterGoal(state, activeUserId, view.selectedQuarter.start, button.dataset.taskId));
+  }
+  if (action === 'add-weekly-goal') {
+    const view = currentReviewView();
+    const usedTaskIds = new Set(view.week.goalProgress.rows.map((row) => row.taskId));
+    const task = view.countableTasks.find((row) => !usedTaskIds.has(row.id));
+    if (task) commit(upsertWeeklyGoal(state, view.selectedWeek.start, task.id, 0, activeUserId));
+  }
+  if (action === 'delete-weekly-goal') {
+    const view = currentReviewView();
+    commit(deleteWeeklyGoal(state, activeUserId, view.selectedWeek.start, button.dataset.taskId));
+  }
+  if (action === 'add-next-action') {
+    addNextActionDraft(button);
+  }
+  if (action === 'delete-next-action') {
+    const card = button.closest('[data-review-card="next-actions"]');
+    const row = button.closest('.next-action-row');
+    row?.remove();
+    commit(
+      replaceWeeklyTodoLines(
+        state,
+        currentReviewView().selectedWeek.start,
+        activeUserId,
+        nextActionLinesFromCard(card)
+      )
+    );
+  }
 }
 
 function handleFocusIn(event) {
@@ -2527,14 +2632,58 @@ function handleChange(event) {
 function handleInput(event) {
   const target = event.target;
   if (target.dataset.reviewField) {
-    const reviewUserId = target.dataset.userId ?? activeUserId;
-    const patch = { userId: reviewUserId, [target.dataset.reviewField]: target.value };
-    const reviewedState = upsertReview(state, reviewWeekStart(), patch);
-    const nextState =
-      target.dataset.reviewField === 'nextPromise'
-        ? upsertWeeklyTodo(reviewedState, weekStart(), reviewUserId, target.value)
-        : reviewedState;
-    commit(nextState, { render: false });
+    const view = currentReviewView();
+    const field = target.dataset.reviewField;
+    const patch = { userId: activeUserId };
+    if (field === 'reflections' || field === 'improvements') {
+      const values = [...view.review[field]];
+      values[Number(target.dataset.reviewIndex)] = target.value;
+      patch[field] = values;
+    } else {
+      patch[field] = target.value;
+    }
+    commit(upsertReview(state, view.selectedWeek.start, patch), { render: false });
+    return;
+  }
+  if (target.dataset.field === 'quarter-note') {
+    const view = currentReviewView();
+    commit(
+      upsertQuarterGoalNote(
+        state,
+        activeUserId,
+        view.selectedQuarter.start,
+        target.dataset.itemId,
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'week-note') {
+    const view = currentReviewView();
+    commit(
+      upsertWeeklyGoalNote(
+        state,
+        activeUserId,
+        view.selectedWeek.start,
+        target.dataset.itemId,
+        target.value
+      ),
+      { render: false }
+    );
+    return;
+  }
+  if (target.dataset.field === 'next-action-row') {
+    const view = currentReviewView();
+    commit(
+      replaceWeeklyTodoLines(
+        state,
+        view.selectedWeek.start,
+        activeUserId,
+        nextActionLinesFromCard(target)
+      ),
+      { render: false }
+    );
     return;
   }
   if (target.dataset.field === 'weekly-goal-action') {

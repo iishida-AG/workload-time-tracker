@@ -36,10 +36,29 @@ const fixture = {
     qualitativeItems: [],
     goalProgress: emptyProgress,
     metrics: {
-      totalActualHours: 0,
+      totalActualHours: 2,
       natureRatios: {},
-      projectRows: [],
-      planActualRows: [],
+      projectRows: [{ projectId: 'p1', projectName: 'SES営業', minutes: 120, hours: 2, ratio: 100 }],
+      planActualRows: [{
+        projectId: 'p1',
+        projectName: 'SES営業',
+        plannedMinutes: 60,
+        actualMinutes: 120,
+        plannedHours: 1,
+        actualHours: 2,
+        diffMinutes: 60,
+        diffHours: 1,
+        tasks: [{
+          taskId: 't1',
+          taskName: '提案',
+          plannedMinutes: 60,
+          actualMinutes: 120,
+          plannedHours: 1,
+          actualHours: 2,
+          diffMinutes: 60,
+          diffHours: 1
+        }]
+      }],
       topGaps: []
     }
   },
@@ -80,4 +99,19 @@ test('renderReviewPage marks selected periods and exposes goal controls', () => 
   assert.match(html, /data-action="add-quarter-goal"/);
   assert.match(html, /data-action="add-weekly-goal"/);
   assert.doesNotMatch(html, /田上目標/);
+});
+
+test('renderReviewPage exposes structured reflection and analysis controls', () => {
+  const html = renderReviewPage(fixture, { icon: (name) => `<i>${name}</i>` });
+
+  assert.match(html, /data-review-field="goodPoints"/);
+  assert.equal((html.match(/data-review-field="reflections"/g) ?? []).length, 3);
+  assert.equal((html.match(/data-review-field="improvements"/g) ?? []).length, 3);
+  assert.match(html, /aria-label="反省点1"/);
+  assert.match(html, /aria-label="改善点1"/);
+  assert.match(html, /data-field="next-action-row"/);
+  assert.match(html, /data-action="add-next-action"/);
+  assert.match(html, /data-review-field="discussionItems"/);
+  assert.match(html, /予定 1h \/ 実績 2h/);
+  assert.match(html, /\+1h/);
 });
