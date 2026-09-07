@@ -24,3 +24,14 @@ test('mobile CSS stacks timeline columns and actual item controls without horizo
   assert.match(mobileSection, /\.shortcut-panel\s*{[^}]*position:\s*fixed;[^}]*bottom:\s*10px;/s);
   assert.match(mobileSection, /\.app-shell\s*{[^}]*padding-bottom:\s*310px;/s);
 });
+
+test('review v2 CSS uses three desktop columns and one mobile column', () => {
+  assert.match(css, /\.review-goal-grid\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.review-reflection-grid\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.review-tabs\s*{[^}]*overflow-x:\s*auto;/s);
+
+  const mobileSection = css.slice(css.indexOf('@media (max-width: 760px)'));
+  assert.match(mobileSection, /\.review-goal-grid\s*{[^}]*grid-template-columns:\s*1fr;/s);
+  assert.match(mobileSection, /\.review-reflection-grid\s*{[^}]*grid-template-columns:\s*1fr;/s);
+  assert.match(mobileSection, /\.review-v2\s*{[^}]*overflow-x:\s*hidden;/s);
+});
