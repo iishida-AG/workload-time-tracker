@@ -2294,13 +2294,29 @@ main {
 
 .review-time-grid {
   display: grid;
-  grid-template-columns: minmax(260px, 0.65fr) minmax(0, 1.35fr);
   gap: 22px;
   align-items: start;
 }
 
 .review-time-grid.no-pie {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.review-time-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.review-time-pie-group {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.review-time-pie-group h3 {
+  margin: 0;
+  font-size: 14px;
 }
 
 .review-time-pie-block {
@@ -2542,6 +2558,10 @@ main {
   }
 
   .review-time-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-time-charts {
     grid-template-columns: 1fr;
   }
 

@@ -37,7 +37,8 @@ const fixture = {
     goalProgress: emptyProgress,
     metrics: {
       totalActualHours: 2,
-      natureRatios: {},
+      natureHours: { core: 1.5, admin: 0.5, investment: 0 },
+      natureRatios: { core: 75, admin: 25, investment: 0 },
       projectRows: [{ projectId: 'p1', projectName: 'SES営業', minutes: 120, hours: 2, ratio: 100 }],
       planActualRows: [{
         projectId: 'p1',
@@ -116,6 +117,19 @@ test('renderReviewPage exposes structured reflection and analysis controls', () 
   assert.match(html, /\+1h/);
 });
 
+test('renderReviewPage shows an actual-time pie grouped by work nature', () => {
+  const html = renderReviewPage(fixture, { icon: (name) => `<i>${name}</i>` });
+
+  assert.match(html, /aria-label="実績工数の業務区分別割合"/);
+  assert.match(html, /コア業務/);
+  assert.match(html, /1\.5h/);
+  assert.match(html, /75%/);
+  assert.match(html, /雑務/);
+  assert.match(html, /0\.5h/);
+  assert.match(html, /25%/);
+  assert.doesNotMatch(html, />投資</);
+});
+
 test('renderReviewPage expands plan comparison when there is no actual-time pie', () => {
   const view = {
     ...fixture,
@@ -124,6 +138,8 @@ test('renderReviewPage expands plan comparison when there is no actual-time pie'
       metrics: {
         ...fixture.week.metrics,
         totalActualHours: 0,
+        natureHours: { core: 0, admin: 0, investment: 0 },
+        natureRatios: { core: 0, admin: 0, investment: 0 },
         projectRows: []
       }
     }

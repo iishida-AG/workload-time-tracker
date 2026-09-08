@@ -1,3 +1,5 @@
+import { TASK_NATURES } from '../domain/presets.js';
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -168,28 +170,49 @@ function differenceClass(minutes) {
   return 'same';
 }
 
-function renderActualTimePie(rows, totalHours) {
+const NATURE_COLORS = {
+  core: '#1f9d6a',
+  admin: '#f59e0b',
+  investment: '#7c3aed'
+};
+
+function renderActualTimePie(rows, totalHours, options = {}) {
   if (rows.length === 0) return '';
   const colors = ['#2364d2', '#1f9d6a', '#f59e0b', '#7c3aed', '#dc5265', '#0e91a8'];
   let cursor = 0;
   const stops = rows.map((row, index) => {
     const start = cursor;
     cursor += row.ratio;
-    return `${colors[index % colors.length]} ${start}% ${cursor}%`;
+    return `${row.color ?? colors[index % colors.length]} ${start}% ${cursor}%`;
   });
-  return `<div class="review-time-pie-block">
-    <div class="review-time-pie" style="background:conic-gradient(${stops.join(', ')})" role="img" aria-label="実績工数の大分類別割合">
-      <span><strong>${totalHours}h</strong><small>実績</small></span>
-    </div>
-    <div class="review-time-legend">
-      ${rows.map((row, index) => `<div>
-        <i style="background:${colors[index % colors.length]}"></i>
-        <span>${escapeHtml(row.projectName)}</span>
-        <strong>${row.hours}h</strong>
-        <em>${row.ratio}%</em>
-      </div>`).join('')}
+  return `<div class="review-time-pie-group">
+    <h3>${escapeHtml(options.title ?? '大分類別')}</h3>
+    <div class="review-time-pie-block">
+      <div class="review-time-pie" style="background:conic-gradient(${stops.join(', ')})" role="img" aria-label="${escapeHtml(options.ariaLabel ?? '実績工数の大分類別割合')}">
+        <span><strong>${totalHours}h</strong><small>実績</small></span>
+      </div>
+      <div class="review-time-legend">
+        ${rows.map((row, index) => `<div>
+          <i style="background:${row.color ?? colors[index % colors.length]}"></i>
+          <span>${escapeHtml(row.label ?? row.projectName)}</span>
+          <strong>${row.hours}h</strong>
+          <em>${row.ratio}%</em>
+        </div>`).join('')}
+      </div>
     </div>
   </div>`;
+}
+
+function natureTimeRows(metrics) {
+  return TASK_NATURES
+    .filter((nature) => nature.id !== 'break')
+    .map((nature) => ({
+      label: nature.label,
+      hours: Number(metrics.natureHours?.[nature.id] ?? 0),
+      ratio: Number(metrics.natureRatios?.[nature.id] ?? 0),
+      color: NATURE_COLORS[nature.id]
+    }))
+    .filter((row) => row.hours > 0 && row.ratio > 0);
 }
 
 function renderTimeBars(rows) {
@@ -230,12 +253,20 @@ function renderTimeBars(rows) {
 function renderTimeAnalysisCard(view) {
   const metrics = view.week.metrics;
   const empty = metrics.projectRows.length === 0 && metrics.planActualRows.length === 0;
+  const natureRows = natureTimeRows(metrics);
+  const hasPies = metrics.projectRows.length > 0 || natureRows.length > 0;
   return `<section class="panel review-card" data-review-card="analysis">
     <div class="panel-heading compact"><div><span class="section-kicker">工数分析</span><h2>予定と実績</h2></div></div>
     ${empty
       ? '<p class="empty-state compact">選択した週の予定・実績工数はまだありません</p>'
-      : `<div class="review-time-grid${metrics.projectRows.length === 0 ? ' no-pie' : ''}">
-          ${renderActualTimePie(metrics.projectRows, metrics.totalActualHours)}
+      : `<div class="review-time-grid${hasPies ? '' : ' no-pie'}">
+          ${hasPies ? `<div class="review-time-charts">
+            ${renderActualTimePie(metrics.projectRows, metrics.totalActualHours)}
+            ${renderActualTimePie(natureRows, metrics.totalActualHours, {
+              title: '業務区分別',
+              ariaLabel: '実績工数の業務区分別割合'
+            })}
+          </div>` : ''}
           ${renderTimeBars(metrics.planActualRows)}
         </div>`}
   </section>`;
