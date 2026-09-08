@@ -2120,6 +2120,7 @@ main {
 .review-goal-column,
 .review-progress-column,
 .review-target-row,
+.review-quarter-target-row,
 .review-note-row,
 .review-time-grid,
 .review-time-project,
@@ -2154,6 +2155,7 @@ main {
 .review-column-heading .icon-button,
 .review-note-row .icon-button,
 .review-target-row .icon-button,
+.review-quarter-target-row .icon-button,
 .next-action-row .icon-button {
   width: 40px;
   min-width: 40px;
@@ -2194,6 +2196,7 @@ main {
 .next-action-row input,
 .review-target-row select,
 .review-target-row input,
+.review-quarter-target-row input,
 .review-wide-field textarea,
 .review-reflection-grid textarea {
   width: 100%;
@@ -2207,7 +2210,8 @@ main {
 .review-note-row input,
 .next-action-row input,
 .review-target-row select,
-.review-target-row input {
+.review-target-row input,
+.review-quarter-target-row input {
   min-height: 40px;
   padding: 0 10px;
 }
@@ -2217,6 +2221,27 @@ main {
   grid-template-columns: minmax(0, 1.2fr) 84px auto 40px;
   gap: 8px;
   align-items: end;
+}
+
+.review-quarter-target-row {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) minmax(88px, 0.62fr) minmax(88px, 0.62fr) 40px;
+  gap: 8px;
+  align-items: end;
+}
+
+.review-money-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  align-items: center;
+}
+
+.review-money-input > span {
+  color: #344054;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .review-target-input {
@@ -2529,6 +2554,30 @@ main {
   .shortcut-grid {
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   }
+
+  .review-quarter-target-row {
+    grid-template-columns: minmax(0, 1fr) 40px;
+    grid-template-areas:
+      "goal delete"
+      "target target"
+      "actual actual";
+  }
+
+  .review-quarter-goal-text {
+    grid-area: goal;
+  }
+
+  .review-quarter-target-profit {
+    grid-area: target;
+  }
+
+  .review-quarter-actual-profit {
+    grid-area: actual;
+  }
+
+  .review-quarter-target-row .icon-button {
+    grid-area: delete;
+  }
 }
 
 @media (max-width: 760px) {
@@ -2606,6 +2655,18 @@ main {
 
   .review-target-input {
     grid-area: target;
+  }
+
+  .review-quarter-goal-text {
+    grid-area: goal;
+  }
+
+  .review-quarter-target-profit {
+    grid-area: target;
+  }
+
+  .review-quarter-actual-profit {
+    grid-area: actual;
   }
 
   .review-target-actual {

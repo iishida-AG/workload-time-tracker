@@ -117,6 +117,53 @@ test('renderReviewPage exposes structured reflection and analysis controls', () 
   assert.match(html, /\+1h/);
 });
 
+test('renderReviewPage uses free text and gross profit fields only for quarter goals', () => {
+  const view = {
+    ...fixture,
+    quarter: {
+      ...fixture.quarter,
+      goalProgress: {
+        rows: [{
+          id: 'gross-1',
+          goalText: 'SES粗利',
+          targetGrossProfit: 300,
+          actualGrossProfit: 360,
+          progressRate: 120
+        }],
+        totalTargetGrossProfit: 300,
+        totalActualGrossProfit: 360,
+        totalProgressRate: 120
+      }
+    },
+    week: {
+      ...fixture.week,
+      goalProgress: {
+        rows: [{ taskId: 't1', taskName: '提案', targetCount: 10, actualCount: 4, progressRate: 40 }],
+        totalActualCount: 4,
+        totalTargetCount: 10,
+        totalProgressRate: 40
+      }
+    }
+  };
+  const html = renderReviewPage(view, { icon: (name) => `<i>${name}</i>` });
+  const quarterHtml = html.slice(
+    html.indexOf('data-review-card="quarter"'),
+    html.indexOf('data-review-card="week"')
+  );
+  const weekHtml = html.slice(html.indexOf('data-review-card="week"'));
+
+  assert.match(quarterHtml, /data-field="quarter-goal-text"/);
+  assert.match(quarterHtml, /data-field="quarter-target-gross-profit"/);
+  assert.match(quarterHtml, /data-field="quarter-actual-gross-profit"/);
+  assert.doesNotMatch(quarterHtml, /data-field="quarter-goal-task"/);
+  assert.doesNotMatch(quarterHtml, /<select/);
+  assert.match(quarterHtml, /360\/300万円 \(120%\)/);
+  assert.match(quarterHtml, /aria-valuenow="100"/);
+  assert.match(quarterHtml, /合計/);
+  assert.match(weekHtml, /data-field="weekly-goal-task"/);
+  assert.match(weekHtml, /4\/10件 \(40%\)/);
+});
+
 test('renderReviewPage shows an actual-time pie grouped by work nature', () => {
   const html = renderReviewPage(fixture, { icon: (name) => `<i>${name}</i>` });
 

@@ -28,8 +28,8 @@ const state = {
     { userId: 'tanoue', quarterStart: '2026-09-01', items: [{ id: 'q2', text: '田上目標' }] }
   ],
   quarterGoals: [
-    { userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 100 },
-    { userId: 'tanoue', quarterStart: '2026-09-01', taskId: 't1', targetCount: 200 }
+    { userId: 'ishida', quarterStart: '2026-09-01', id: 'gross-1', goalText: 'SES粗利', targetGrossProfit: 300, actualGrossProfit: 180 },
+    { userId: 'tanoue', quarterStart: '2026-09-01', id: 'gross-1', goalText: '田上粗利', targetGrossProfit: 500, actualGrossProfit: 200 }
   ],
   weeklyGoalNotes: [
     { userId: 'ishida', weekStart: '2026-09-07', items: [{ id: 'w1', text: '即日追客' }] },
@@ -82,7 +82,13 @@ test('createReviewViewModel assembles only the active user review data', () => {
   assert.deepEqual(view.countableTasks.map((task) => task.id), ['t1', 't2']);
   assert.deepEqual(view.quarter.qualitativeItems.map((item) => item.text), ['重点顧客']);
   assert.deepEqual(view.week.qualitativeItems.map((item) => item.text), ['即日追客']);
-  assert.equal(view.quarter.goalProgress.rows[0].actualCount, 4);
+  assert.equal(view.quarter.goalProgress.rows[0].goalText, 'SES粗利');
+  assert.equal(view.quarter.goalProgress.rows[0].targetGrossProfit, 300);
+  assert.equal(view.quarter.goalProgress.rows[0].actualGrossProfit, 180);
+  assert.equal(view.quarter.goalProgress.rows[0].progressRate, 60);
+  assert.equal(view.quarter.goalProgress.totalTargetGrossProfit, 300);
+  assert.equal(view.quarter.goalProgress.totalActualGrossProfit, 180);
+  assert.equal(view.quarter.goalProgress.totalProgressRate, 60);
   assert.equal(view.week.goalProgress.rows[0].actualCount, 4);
   assert.equal(view.review.goodPoints, '受注');
   assert.deepEqual(view.review.reflections, ['準備', '', '']);
@@ -104,4 +110,21 @@ test('createReviewViewModel accepts a valid selected operational week', () => {
   assert.equal(view.monthKey, '2026-08');
   assert.equal(view.selectedWeek.label, '5週目');
   assert.equal(view.week.goalProgress.totalActualCount, 0);
+});
+
+test('createReviewViewModel keeps legacy quarter count goals visible without treating counts as gross profit', () => {
+  const legacyState = {
+    ...state,
+    quarterGoals: [
+      { userId: 'ishida', quarterStart: '2026-09-01', taskId: 't1', targetCount: 100 }
+    ]
+  };
+  const view = createReviewViewModel(legacyState, {
+    userId: 'ishida',
+    currentDate: '2026-09-07'
+  });
+
+  assert.equal(view.quarter.goalProgress.rows[0].goalText, 'SES / 提案（旧目標 100件）');
+  assert.equal(view.quarter.goalProgress.rows[0].targetGrossProfit, 0);
+  assert.equal(view.quarter.goalProgress.rows[0].actualGrossProfit, 0);
 });

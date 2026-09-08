@@ -42,6 +42,32 @@ function normalizeTargetCount(value) {
   return Math.max(0, Number(value) || 0);
 }
 
+function normalizeGrossProfit(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+function normalizeQuarterGoal(goal, defaultUserId) {
+  const isGrossProfitGoal = goal.id != null
+    || Object.hasOwn(goal, 'goalText')
+    || Object.hasOwn(goal, 'targetGrossProfit')
+    || Object.hasOwn(goal, 'actualGrossProfit');
+  if (!isGrossProfitGoal) {
+    return {
+      ...goal,
+      userId: goal.userId ?? defaultUserId,
+      targetCount: normalizeTargetCount(goal.targetCount)
+    };
+  }
+  return {
+    userId: goal.userId ?? defaultUserId,
+    quarterStart: goal.quarterStart,
+    id: String(goal.id ?? goal.taskId ?? ''),
+    goalText: String(goal.goalText ?? ''),
+    targetGrossProfit: normalizeGrossProfit(goal.targetGrossProfit),
+    actualGrossProfit: normalizeGrossProfit(goal.actualGrossProfit)
+  };
+}
+
 function normalizeThreeRows(rows, fallback = '') {
   const values = Array.isArray(rows) ? rows : [fallback];
   return Array.from({ length: 3 }, (_, index) => String(values[index] ?? ''));
@@ -87,11 +113,7 @@ export function normalizeState(state, defaultUserId = 'ishida') {
       ...goal
     })),
     quarterGoalNotes: normalizeGoalNoteRows(state.quarterGoalNotes, defaultUserId, 'quarterStart'),
-    quarterGoals: (state.quarterGoals ?? []).map((goal) => ({
-      ...goal,
-      userId: goal.userId ?? defaultUserId,
-      targetCount: normalizeTargetCount(goal.targetCount)
-    })),
+    quarterGoals: (state.quarterGoals ?? []).map((goal) => normalizeQuarterGoal(goal, defaultUserId)),
     weeklyGoalNotes: normalizeGoalNoteRows(state.weeklyGoalNotes, defaultUserId, 'weekStart'),
     weeklyGoals: (state.weeklyGoals ?? []).map((goal) => ({
       ...goal,
@@ -574,7 +596,36 @@ export function upsertQuarterGoal(state, userId, quarterStart, taskId, targetCou
   };
 }
 
-export function deleteQuarterGoal(state, userId, quarterStart, taskId) {
+export function upsertQuarterGrossProfitGoal(state, userId, quarterStart, id, patch) {
+  const row = {
+    userId,
+    quarterStart,
+    id: String(id),
+    goalText: String(patch.goalText ?? ''),
+    targetGrossProfit: normalizeGrossProfit(patch.targetGrossProfit),
+    actualGrossProfit: normalizeGrossProfit(patch.actualGrossProfit)
+  };
+  const exists = (state.quarterGoals ?? []).some(
+    (goal) =>
+      (goal.userId ?? 'ishida') === userId &&
+      goal.quarterStart === quarterStart &&
+      String(goal.id ?? goal.taskId) === row.id
+  );
+  return {
+    ...state,
+    quarterGoals: exists
+      ? (state.quarterGoals ?? []).map((goal) =>
+          (goal.userId ?? 'ishida') === userId &&
+          goal.quarterStart === quarterStart &&
+          String(goal.id ?? goal.taskId) === row.id
+            ? row
+            : goal
+        )
+      : [...(state.quarterGoals ?? []), row]
+  };
+}
+
+export function deleteQuarterGoal(state, userId, quarterStart, goalId) {
   return {
     ...state,
     quarterGoals: (state.quarterGoals ?? []).filter(
@@ -582,7 +633,7 @@ export function deleteQuarterGoal(state, userId, quarterStart, taskId) {
         !(
           (goal.userId ?? 'ishida') === userId &&
           goal.quarterStart === quarterStart &&
-          goal.taskId === taskId
+          String(goal.id ?? goal.taskId) === String(goalId)
         )
     )
   };

@@ -18,6 +18,7 @@ import {
   setDailyCount,
   updateTask,
   upsertQuarterGoal,
+  upsertQuarterGrossProfitGoal,
   upsertQuarterGoalNote,
   upsertMonthlyTaskTarget,
   upsertMonthlyProjectGoal,
@@ -392,6 +393,74 @@ test('quarter and weekly goal rows update only their exact user and period', () 
   assert.deepEqual(next.quarterGoals, []);
 });
 
+test('quarter gross profit goals update only their exact user, period, and row', () => {
+  const state = {
+    ...createAppState('2026-09-07'),
+    quarterGoals: [
+      {
+        userId: 'ishida',
+        quarterStart: '2026-09-01',
+        id: 'gross-1',
+        goalText: 'SES粗利',
+        targetGrossProfit: 300,
+        actualGrossProfit: 120
+      },
+      {
+        userId: 'tanoue',
+        quarterStart: '2026-09-01',
+        id: 'gross-1',
+        goalText: '田上粗利',
+        targetGrossProfit: 500,
+        actualGrossProfit: 200
+      },
+      {
+        userId: 'ishida',
+        quarterStart: '2026-12-01',
+        id: 'gross-1',
+        goalText: '次Q粗利',
+        targetGrossProfit: 600,
+        actualGrossProfit: 0
+      }
+    ]
+  };
+
+  let next = upsertQuarterGrossProfitGoal(state, 'ishida', '2026-09-01', 'gross-1', {
+    goalText: 'SES粗利を伸ばす',
+    targetGrossProfit: 350.5,
+    actualGrossProfit: 210.25
+  });
+
+  assert.deepEqual(next.quarterGoals[0], {
+    userId: 'ishida',
+    quarterStart: '2026-09-01',
+    id: 'gross-1',
+    goalText: 'SES粗利を伸ばす',
+    targetGrossProfit: 350.5,
+    actualGrossProfit: 210.25
+  });
+  assert.equal(next.quarterGoals[1].actualGrossProfit, 200);
+  assert.equal(next.quarterGoals[2].targetGrossProfit, 600);
+
+  next = upsertQuarterGrossProfitGoal(next, 'ishida', '2026-09-01', 'gross-2', {
+    goalText: '新規事業',
+    targetGrossProfit: -10,
+    actualGrossProfit: 'bad'
+  });
+  assert.deepEqual(next.quarterGoals.at(-1), {
+    userId: 'ishida',
+    quarterStart: '2026-09-01',
+    id: 'gross-2',
+    goalText: '新規事業',
+    targetGrossProfit: 0,
+    actualGrossProfit: 0
+  });
+
+  next = deleteQuarterGoal(next, 'ishida', '2026-09-01', 'gross-1');
+  assert.equal(next.quarterGoals.some((goal) => goal.userId === 'ishida' && goal.quarterStart === '2026-09-01' && goal.id === 'gross-1'), false);
+  assert.equal(next.quarterGoals.some((goal) => goal.userId === 'tanoue' && goal.id === 'gross-1'), true);
+  assert.equal(next.quarterGoals.some((goal) => goal.quarterStart === '2026-12-01' && goal.id === 'gross-1'), true);
+});
+
 test('weekly goal deletion keeps other users and daily actual counts', () => {
   const state = {
     ...createAppState('2026-09-07'),
@@ -461,4 +530,27 @@ test('goal target normalization clamps malformed and negative values', () => {
 
   assert.equal(normalized.weeklyGoals[0].targetCount, 0);
   assert.equal(normalized.quarterGoals[0].targetCount, 0);
+});
+
+test('quarter gross profit goal normalization preserves the new row shape', () => {
+  const normalized = normalizeState({
+    projects: [],
+    tasks: [],
+    quarterGoals: [{
+      quarterStart: '2026-09-01',
+      id: 'gross-1',
+      goalText: 123,
+      targetGrossProfit: -1,
+      actualGrossProfit: 'bad'
+    }]
+  }, 'tanoue');
+
+  assert.deepEqual(normalized.quarterGoals[0], {
+    userId: 'tanoue',
+    quarterStart: '2026-09-01',
+    id: 'gross-1',
+    goalText: '123',
+    targetGrossProfit: 0,
+    actualGrossProfit: 0
+  });
 });

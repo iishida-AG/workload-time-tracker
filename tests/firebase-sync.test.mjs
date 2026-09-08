@@ -155,6 +155,45 @@ await test('new review collections merge by user and period keys', () => {
   assert.equal(merged.weeklyGoalNotes[0].userId, 'ishida');
 });
 
+await test('quarter gross profit goal rows merge by row id without collapsing the same user and quarter', () => {
+  const merged = mergeSharedStateForSave(
+    {
+      quarterGoals: [{
+        userId: 'ishida',
+        quarterStart: '2026-09-01',
+        id: 'gross-1',
+        goalText: '既存粗利',
+        targetGrossProfit: 300,
+        actualGrossProfit: 100
+      }]
+    },
+    {
+      quarterGoals: [
+        {
+          userId: 'ishida',
+          quarterStart: '2026-09-01',
+          id: 'gross-1',
+          goalText: '更新粗利',
+          targetGrossProfit: 350,
+          actualGrossProfit: 150
+        },
+        {
+          userId: 'ishida',
+          quarterStart: '2026-09-01',
+          id: 'gross-2',
+          goalText: '新規粗利',
+          targetGrossProfit: 200,
+          actualGrossProfit: 50
+        }
+      ]
+    }
+  );
+
+  assert.equal(merged.quarterGoals.length, 2);
+  assert.equal(merged.quarterGoals.find((goal) => goal.id === 'gross-1').goalText, '更新粗利');
+  assert.equal(merged.quarterGoals.find((goal) => goal.id === 'gross-2').actualGrossProfit, 50);
+});
+
 await test('combineSharedStateSnapshots reads legacy root data and user-specific documents together', () => {
   const combined = combineSharedStateSnapshots(
     {

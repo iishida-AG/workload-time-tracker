@@ -85,6 +85,44 @@ function activeCountableTasks(state) {
     });
 }
 
+function grossProfitRate(actual, target) {
+  if (target === 0) return 0;
+  return Math.round((actual / target) * 1000) / 10;
+}
+
+function createQuarterGrossProfitProgress(state, goals) {
+  const tasks = new Map((state.tasks ?? []).map((task) => [task.id, task]));
+  const projects = new Map((state.projects ?? []).map((project) => [project.id, project]));
+  const rows = goals.map((goal, index) => {
+    const targetGrossProfit = Math.max(0, Number(goal.targetGrossProfit) || 0);
+    const actualGrossProfit = Math.max(0, Number(goal.actualGrossProfit) || 0);
+    const legacyTask = tasks.get(goal.taskId);
+    const legacyProject = projects.get(legacyTask?.projectId);
+    const legacyName = legacyTask
+      ? `${legacyProject?.name ? `${legacyProject.name} / ` : ''}${legacyTask.name}`
+      : '旧クウォーター目標';
+    const legacyTarget = Math.max(0, Number(goal.targetCount) || 0);
+    const goalText = goal.goalText == null
+      ? `${legacyName}（旧目標 ${legacyTarget}件）`
+      : String(goal.goalText);
+    return {
+      id: String(goal.id ?? goal.taskId ?? `legacy-quarter-goal-${index + 1}`),
+      goalText,
+      targetGrossProfit,
+      actualGrossProfit,
+      progressRate: grossProfitRate(actualGrossProfit, targetGrossProfit)
+    };
+  });
+  const totalTargetGrossProfit = rows.reduce((sum, row) => sum + row.targetGrossProfit, 0);
+  const totalActualGrossProfit = rows.reduce((sum, row) => sum + row.actualGrossProfit, 0);
+  return {
+    rows,
+    totalTargetGrossProfit,
+    totalActualGrossProfit,
+    totalProgressRate: grossProfitRate(totalActualGrossProfit, totalTargetGrossProfit)
+  };
+}
+
 export function createReviewViewModel(state, options) {
   const { userId, currentDate } = options;
   const quarters = getFiscalTermQuarters(currentDate);
@@ -131,12 +169,7 @@ export function createReviewViewModel(state, options) {
         'quarterStart',
         selectedQuarter.start
       ),
-      goalProgress: computeGoalProgress(state, {
-        userId,
-        startDate: selectedQuarter.start,
-        endDate: selectedQuarter.end,
-        goals: quarterGoals
-      })
+      goalProgress: createQuarterGrossProfitProgress(state, quarterGoals)
     },
     week: {
       qualitativeItems: itemsForPeriod(

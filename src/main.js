@@ -49,7 +49,7 @@ import {
   upsertMonthlyProjectGoal,
   upsertMonthlyTaskTarget,
   upsertProjectGoalVisibility,
-  upsertQuarterGoal,
+  upsertQuarterGrossProfitGoal,
   upsertQuarterGoalNote,
   upsertReview,
   upsertTimelineSetting,
@@ -2442,13 +2442,19 @@ function handleClick(event) {
   }
   if (action === 'add-quarter-goal') {
     const view = currentReviewView();
-    const usedTaskIds = new Set(view.quarter.goalProgress.rows.map((row) => row.taskId));
-    const task = view.countableTasks.find((row) => !usedTaskIds.has(row.id));
-    if (task) commit(upsertQuarterGoal(state, activeUserId, view.selectedQuarter.start, task.id, 0));
+    commit(
+      upsertQuarterGrossProfitGoal(
+        state,
+        activeUserId,
+        view.selectedQuarter.start,
+        reviewRowId('quarter-goal'),
+        { goalText: '', targetGrossProfit: 0, actualGrossProfit: 0 }
+      )
+    );
   }
   if (action === 'delete-quarter-goal') {
     const view = currentReviewView();
-    commit(deleteQuarterGoal(state, activeUserId, view.selectedQuarter.start, button.dataset.taskId));
+    commit(deleteQuarterGoal(state, activeUserId, view.selectedQuarter.start, button.dataset.goalId));
   }
   if (action === 'add-weekly-goal') {
     const view = currentReviewView();
@@ -2556,16 +2562,18 @@ function handleChange(event) {
       ?? (activeTab === 'review' ? currentReviewView().selectedWeek.start : weekStart());
     commit(upsertWeeklyGoal(state, targetWeek, target.dataset.taskId, target.value, activeUserId));
   }
-  if (target.dataset.field === 'quarter-target') {
-    const quarterStart = currentReviewView().selectedQuarter.start;
-    commit(upsertQuarterGoal(state, activeUserId, quarterStart, target.dataset.taskId, target.value));
-  }
-  if (target.dataset.field === 'quarter-goal-task') {
+  if (['quarter-goal-text', 'quarter-target-gross-profit', 'quarter-actual-gross-profit'].includes(target.dataset.field)) {
     const row = target.closest('[data-goal-row]');
-    const targetCount = row?.querySelector('[data-field="quarter-target"]')?.value ?? 0;
+    const goalId = row?.dataset.goalId;
+    if (!row || !goalId) return;
     const quarterStart = currentReviewView().selectedQuarter.start;
-    const withoutOldGoal = deleteQuarterGoal(state, activeUserId, quarterStart, target.dataset.taskId);
-    commit(upsertQuarterGoal(withoutOldGoal, activeUserId, quarterStart, target.value, targetCount));
+    commit(
+      upsertQuarterGrossProfitGoal(state, activeUserId, quarterStart, goalId, {
+        goalText: row.querySelector('[data-field="quarter-goal-text"]')?.value ?? '',
+        targetGrossProfit: row.querySelector('[data-field="quarter-target-gross-profit"]')?.value ?? 0,
+        actualGrossProfit: row.querySelector('[data-field="quarter-actual-gross-profit"]')?.value ?? 0
+      })
+    );
   }
   if (target.dataset.field === 'weekly-goal-task') {
     const row = target.closest('[data-goal-row]');

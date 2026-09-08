@@ -87,6 +87,71 @@ function renderProgressRows(progress) {
   </div>`;
 }
 
+function renderQuarterGoalRows(progress, icon) {
+  if (progress.rows.length === 0) {
+    return '<p class="empty-state compact">定量目標はまだありません</p>';
+  }
+  return `<div class="review-target-list">
+    ${progress.rows.map((row) => `<div class="review-quarter-target-row" data-goal-row data-goal-id="${escapeHtml(row.id)}">
+      <label class="review-target-input review-quarter-goal-text">
+        <span>目標内容</span>
+        <input type="text" value="${escapeHtml(row.goalText)}" data-field="quarter-goal-text" data-goal-id="${escapeHtml(row.id)}" aria-label="クウォーター定量目標" />
+      </label>
+      <label class="review-target-input review-quarter-target-profit">
+        <span>達成目標粗利</span>
+        <span class="review-money-input"><input type="number" min="0" step="0.01" value="${row.targetGrossProfit}" data-field="quarter-target-gross-profit" data-goal-id="${escapeHtml(row.id)}" aria-label="達成目標粗利" /><span>万円</span></span>
+      </label>
+      <label class="review-target-input review-quarter-actual-profit">
+        <span>粗利実績</span>
+        <span class="review-money-input"><input type="number" min="0" step="0.01" value="${row.actualGrossProfit}" data-field="quarter-actual-gross-profit" data-goal-id="${escapeHtml(row.id)}" aria-label="粗利実績" /><span>万円</span></span>
+      </label>
+      <button type="button" class="icon-button danger-icon" data-action="delete-quarter-goal" data-goal-id="${escapeHtml(row.id)}" aria-label="定量目標を削除" title="定量目標を削除">${icon('trash')}</button>
+    </div>`).join('')}
+  </div>`;
+}
+
+function renderQuarterProgressRows(progress) {
+  if (progress.rows.length === 0) {
+    return '<p class="empty-state compact">達成率はまだありません</p>';
+  }
+  return `<div class="review-progress-list">
+    ${progress.rows.map((row) => {
+      const width = Math.min(100, Math.max(0, row.progressRate));
+      return `<div class="review-progress-row">
+        <div><span>${escapeHtml(row.goalText || '名称未入力')}</span><strong>${row.actualGrossProfit}/${row.targetGrossProfit}万円 (${row.progressRate}%)</strong></div>
+        <div class="review-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${width}"><span style="width:${width}%"></span></div>
+      </div>`;
+    }).join('')}
+    <div class="review-progress-total">
+      <span>合計</span>
+      <strong>${progress.totalActualGrossProfit}/${progress.totalTargetGrossProfit}万円 (${progress.totalProgressRate}%)</strong>
+    </div>
+  </div>`;
+}
+
+function renderQuarterGoalColumns(view, icon) {
+  return `<div class="review-goal-grid">
+    <div class="review-goal-column">
+      <div class="review-column-heading">
+        <h3>定性目標</h3>
+        ${renderIconButton('add-quarter-note', '定性目標を追加', icon)}
+      </div>
+      ${renderQualitativeItems(view.quarter.qualitativeItems, 'quarter-note', 'delete-quarter-note', icon)}
+    </div>
+    <div class="review-goal-column">
+      <div class="review-column-heading">
+        <h3>定量目標（粗利）</h3>
+        ${renderIconButton('add-quarter-goal', '定量目標を追加', icon)}
+      </div>
+      ${renderQuarterGoalRows(view.quarter.goalProgress, icon)}
+    </div>
+    <div class="review-goal-column review-progress-column">
+      <div class="review-column-heading"><h3>粗利達成率</h3></div>
+      ${renderQuarterProgressRows(view.quarter.goalProgress)}
+    </div>
+  </div>`;
+}
+
 function renderGoalColumns(view, period, config, icon) {
   const usedTaskIds = new Set(period.goalProgress.rows.map((row) => row.taskId));
   const addDisabled = view.countableTasks.every((task) => usedTaskIds.has(task.id));
@@ -113,15 +178,6 @@ function renderGoalColumns(view, period, config, icon) {
 }
 
 function renderQuarterGoalCard(view, icon) {
-  const config = {
-    noteField: 'quarter-note',
-    taskField: 'quarter-goal-task',
-    targetField: 'quarter-target',
-    addNoteAction: 'add-quarter-note',
-    deleteNoteAction: 'delete-quarter-note',
-    addGoalAction: 'add-quarter-goal',
-    deleteAction: 'delete-quarter-goal'
-  };
   return `<section class="panel review-card review-goal-card" data-review-card="quarter">
     <div class="panel-heading review-card-heading">
       <div>
@@ -131,7 +187,7 @@ function renderQuarterGoalCard(view, icon) {
       </div>
       ${renderTabs(view.quarters, view.selectedQuarter.start, 'select-quarter', 'data-quarter-start')}
     </div>
-    ${renderGoalColumns(view, view.quarter, config, icon)}
+    ${renderQuarterGoalColumns(view, icon)}
   </section>`;
 }
 
